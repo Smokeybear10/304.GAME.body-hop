@@ -1,0 +1,33 @@
+{
+  "name": "body-hop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently --kill-others --names api,game \"npm:dev:api\" \"npm:dev:client\"",
+    "dev:api": "node --watch --experimental-strip-types src/server/local.ts",
+    "dev:client": "vite --host 127.0.0.1",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "build": "npm run typecheck && npm run build:client && npm run build:server",
+    "build:client": "vite build",
+    "build:server": "esbuild src/server/index.ts --bundle --platform=node --format=cjs --target=es2023 --outfile=dist/server/index.cjs --sourcemap --minify",
+    "watch": "concurrently --kill-others --names client,server \"vite build --watch\" \"esbuild src/server/index.ts --bundle --platform=node --format=cjs --target=es2023 --outfile=dist/server/index.cjs --sourcemap --watch=forever\"",
+    "playtest": "devvit playtest",
+    "whoami": "devvit whoami"
+  },
+  "dependencies": {
+    "@devvit/web": "0.15.3",
+    "phaser": "4.2.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "concurrently": "9.2.1",
+    "devvit": "0.15.3",
+    "esbuild": "0.28.2",
+    "node": "24.18.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.8"
+  },
+  "engines": { "node": ">=24.18.0" }
+}
