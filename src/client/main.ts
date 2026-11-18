@@ -552,7 +552,7 @@ function renderReady() {
   }</span>
     ${
       first
-        ? '<canvas id="title-art" class="title-art" width="1020" height="216" role="img" aria-label="BODY HOP"></canvas>'
+        ? '<canvas id="title-art" class="title-art" width="1020" height="216" role="img" aria-label="NEXT OF SKIN"></canvas>'
         : `<h1>${chamber.name}</h1>`
     }
     <canvas id="portrait" class="intro-creature" width="240" height="150" aria-hidden="true"></canvas>
@@ -944,7 +944,7 @@ function renderResult(result: RunResult) {
     begin();
   });
   const postUrl = getPostUrl();
-  const record = `BODY HOP · ${run.challenge.date}\n${
+  const record = `NEXT OF SKIN · ${run.challenge.date}\n${
     escaped
       ? "Escaped all 6 chambers"
       : `Died in chamber ${result.completedEncounters + 1}`

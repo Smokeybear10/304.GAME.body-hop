@@ -7,7 +7,7 @@ import { handleError, HttpError, routeApi, writeJson } from "./http.ts";
 import { parseChallenge } from "./state.ts";
 
 async function postChallenge(): Promise<Challenge> {
-  if (!context.postId) throw new HttpError(400, "Open BODY HOP from its challenge post.");
+  if (!context.postId) throw new HttpError(400, "Open NEXT OF SKIN from its challenge post.");
   if (context.postData?.challenge) {
     const parsed = parseChallenge(context.postData.challenge);
     if (!parsed) throw new HttpError(409, "This post uses an unsupported challenge version.");
@@ -41,7 +41,7 @@ async function createDailyPost(): Promise<{ id: string; url: string }> {
     const ready = await redis.get(key);
     if (ready) return JSON.parse(ready) as { id: string; url: string };
     const post = await reddit.submitCustomPost({
-      title: `BODY HOP · ${challenge.date} · Borrow a body. Find your way out.`,
+      title: `NEXT OF SKIN · ${challenge.date} · Borrow a body. Find your way out.`,
       entry: "default",
       postData: { challenge },
       textFallback: {
@@ -71,7 +71,7 @@ const server = createServer(async (request, response) => {
     if (request.method !== "POST") throw new HttpError(404, "Not found.");
     if (path === "/internal/menu/daily-post") {
       const post = await createDailyPost();
-      writeJson(response, 200, { navigateTo: post.url, showToast: { text: "Today's BODY HOP is ready.", appearance: "success" } });
+      writeJson(response, 200, { navigateTo: post.url, showToast: { text: "Today's NEXT OF SKIN is ready.", appearance: "success" } });
       return;
     }
     if (path === "/internal/install") {
