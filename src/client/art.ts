@@ -1345,30 +1345,23 @@ export function paintTitle(
   dark = false
 ) {
   const letters = [
-    "M5 5 22 3 42 43 42 4 59 5 57 74 41 73 21 34 20 74 4 72Z",
-    "M6 4 56 3 55 20 24 20 23 30 47 29 48 45 23 47 22 57 57 56 55 74 4 72Z",
-    "M3 5 23 3 33 24 44 4 62 5 44 37 61 72 41 74 30 51 20 74 2 72 20 37Z",
-    "M3 5 60 3 59 21 40 20 38 74 21 73 22 21 4 22Z",
+    "M5 5 22 3 34 29 47 4 63 5 61 74 44 73 45 35 34 54 22 36 21 74 4 72Z",
     "M20 3 43 5 58 21 55 58 41 74 18 72 4 54 6 19Z M24 19 20 26 20 54 27 59 38 57 42 49 41 26 36 19Z",
-    "M6 4 57 3 55 21 24 20 23 32 48 31 47 49 23 49 21 74 4 72Z",
-    "M18 3 49 5 58 17 47 29 38 20 24 20 21 28 46 35 58 48 55 63 42 75 17 73 3 60 15 47 25 56 37 57 41 51 15 43 4 30 7 15Z",
-    "M5 4 23 3 22 29 42 4 62 5 37 37 62 72 41 74 22 47 20 74 4 72Z",
-    "M9 4 53 3 52 18 40 19 39 57 52 58 51 74 7 72 8 57 22 56 23 20 8 20Z",
-    "M5 5 22 3 42 43 42 4 59 5 57 74 41 73 21 34 20 74 4 72Z",
+    "M6 4 25 3 23 55 57 54 55 74 4 72Z",
+    "M3 5 60 3 59 21 40 20 38 74 21 73 22 21 4 22Z",
   ];
   ctx.clearRect(0, 0, width, height);
   ctx.save();
-  const scale = Math.min(width / 592, height / 108);
-  ctx.translate((width - 592 * scale) / 2, (height - 100 * scale) / 2);
+  const scale = Math.min(width / 282, height / 108);
+  ctx.translate((width - 282 * scale) / 2, (height - 100 * scale) / 2);
   ctx.scale(scale, scale);
   for (const [index, letter] of letters.entries()) {
     ctx.save();
     ctx.translate(
-      10 + index * 54 + (index > 3 ? 18 : 0) + (index > 5 ? 18 : 0),
+      10 + index * 67,
       12 + Math.sin(index * 2.5) * 3
     );
     ctx.rotate((index % 2 ? 1 : -1) * 0.025);
-    ctx.scale(0.8, 1);
     const glyph = new Path2D(letter);
     ctx.fillStyle = dark ? INK.black : INK.paper;
     ctx.fill(glyph, "evenodd");
@@ -1391,14 +1384,14 @@ export function paintTitle(
   paintParasite(
     ctx,
     [
-      { x: 270, y: 72 },
-      { x: 262, y: 65 },
-      { x: 266, y: 53 },
-      { x: 281, y: 48 },
-      { x: 295, y: 53 },
-      { x: 298, y: 65 },
-      { x: 311, y: 77 },
-      { x: 326, y: 76 },
+      { x: 103, y: 72 },
+      { x: 95, y: 65 },
+      { x: 99, y: 53 },
+      { x: 114, y: 48 },
+      { x: 128, y: 53 },
+      { x: 131, y: 65 },
+      { x: 144, y: 77 },
+      { x: 159, y: 76 },
     ],
     3.5
   );
