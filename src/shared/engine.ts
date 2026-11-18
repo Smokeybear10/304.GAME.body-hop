@@ -379,6 +379,7 @@ function damage(run: Run, target: Actor, amount: number, sourceId: number, gener
   let shellDamage = 0;
   let coreDamage = 0;
   if (target.faction === 'player') {
+    if (!run.actors.some(actor => actor.faction === 'enemy' && actor.hp > 0) && run.encounterGroup === getEncounter(run.challenge, run.encounterIndex).groups.length - 1) return false;
     amount = 1;
     target.shell = 0;
     coreDamage = Math.min(run.core, amount);
@@ -431,15 +432,19 @@ function enemyPattern(run: Run, actor: Actor, dx: number, dy: number, basic = fa
 
 function emitPattern(run: Run, actor: Actor, pattern: BulletPattern): void {
   const player = getPlayer(run);
-  const close = distance(actor, player) < 160;
-  const closeAngle = Math.atan2(player.y - actor.y, player.x - actor.x);
+  const clearance = PLAYER_BULLET_RADIUS + (actor.elite ? 6 : 8) + 6;
+  const muzzleDistance = actor.radius + 7;
+  const safetyDistance = muzzleDistance + pattern.speed * 0.22;
   const angularDistance = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
   for (let index = 0; index < pattern.count; index++) {
     const angle = pattern.kind === 'ring' ? pattern.angle + index * Math.PI * 2 / pattern.count
       : pattern.angle + (index / (pattern.count - 1) - 0.5) * pattern.spread;
     if (pattern.kind === 'ring' && angularDistance(angle, pattern.angle) < pattern.gap / 2) continue;
-    if (close && angularDistance(angle, closeAngle) < 0.675) continue;
-    projectile(run, actor, Math.cos(angle), Math.sin(angle), 1, 0, true, actor.elite ? 'barb' : 'spit', pattern.speed);
+    const dx = Math.cos(angle), dy = Math.sin(angle);
+    const muzzle = { x: actor.x + dx * muzzleDistance, y: actor.y + dy * muzzleDistance };
+    const safetyEnd = { x: actor.x + dx * safetyDistance, y: actor.y + dy * safetyDistance };
+    if (segmentDistance(player, muzzle, safetyEnd) <= clearance) continue;
+    projectile(run, actor, dx, dy, 1, 0, true, actor.elite ? 'barb' : 'spit', pattern.speed);
   }
 }
 
@@ -466,8 +471,13 @@ function basicAttack(run: Run, actor: Actor, dx: number, dy: number, events: Gam
   if (actor.species === 'spitter') { emitPattern(run, actor, pattern ?? enemyPattern(run, actor, dx, dy, true)); return; }
   const reach = actor.species === 'beetle' ? 100 : 84;
   for (const target of targets(run, actor)) {
-    const delta = direction(target.x - actor.x, target.y - actor.y);
-    if (distance(actor, target) <= reach + target.radius * 0.3 && delta.x * dx + delta.y * dy > 0.25 && hasLineOfSight(run, actor, target))
+    const facing = Math.atan2(dy, dx);
+    const angle = Math.atan2(target.y - actor.y, target.x - actor.x) - facing;
+    const nearestAngle = facing + clamp(Math.atan2(Math.sin(angle), Math.cos(angle)), -1.3, 1.3);
+    const nearestDirection = { x: Math.cos(nearestAngle), y: Math.sin(nearestAngle) };
+    const along = clamp((target.x - actor.x) * nearestDirection.x + (target.y - actor.y) * nearestDirection.y, 0, reach);
+    const nearest = { x: actor.x + nearestDirection.x * along, y: actor.y + nearestDirection.y * along };
+    if (distance(target, nearest) <= PLAYER_BULLET_RADIUS && hasLineOfSight(run, actor, target))
       damage(run, target, 1, actor.id, 0, false, `${SPECIES[actor.species].name} landed the final hit.`, events);
   }
 }
@@ -546,7 +556,8 @@ function updateAction(run: Run, actor: Actor, dt: number, events: GameEvent[]): 
     actor.x = endpoint.x;
     actor.y = endpoint.y;
     for (const target of targets(run, actor)) {
-      if (action.hitIds.includes(target.id) || segmentDistance(target, before, actor) > actor.radius + target.radius) continue;
+      const targetRadius = target.faction === 'player' ? PLAYER_BULLET_RADIUS : target.radius;
+      if (action.hitIds.includes(target.id) || segmentDistance(target, before, actor) > actor.radius + targetRadius) continue;
       action.hitIds.push(target.id);
       if (!canTakeDamage(target)) continue;
       displace(run, target, action.dirX * 80, action.dirY * 80);
@@ -570,7 +581,7 @@ function updateAction(run: Run, actor: Actor, dt: number, events: GameEvent[]): 
     actor.y = landing.y;
     const radius = enemy ? LEAP_RADIUS.enemy : LEAP_RADIUS.player;
     const landedTargets = targets(run, actor)
-      .filter(target => distance(actor, target) <= radius + target.radius * 0.4 && hasLineOfSight(run, actor, target))
+      .filter(target => distance(actor, target) <= radius + (target.faction === 'player' ? PLAYER_BULLET_RADIUS : target.radius * 0.4) && hasLineOfSight(run, actor, target))
       .sort((a, b) => distance(actor, a) - distance(actor, b) || a.id - b.id);
     for (const target of landedTargets) {
       const hit = damage(run, target, enemy ? 1 : 5, actor.id, action.generation, !enemy && action.generation === 0 && has(run, 'venom-sacs'), 'A landing crushed your body.', events);
