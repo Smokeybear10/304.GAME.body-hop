@@ -1,0 +1,45 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "body-hop",
+  "marketingAssets": { "icon": "assets/icon.png" },
+  "post": {
+    "dir": "dist/client",
+    "entrypoints": {
+      "default": { "entry": "splash.html", "height": "tall", "inline": true },
+      "game": { "entry": "game.html" }
+    }
+  },
+  "server": { "dir": "dist/server", "entry": "index.cjs" },
+  "permissions": { "redis": true, "reddit": true },
+  "menu": {
+    "items": [
+      {
+        "label": "Post today's BODY HOP",
+        "description": "Create or open today's shared escape.",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/daily-post"
+      }
+    ]
+  },
+  "triggers": { "onAppInstall": "/internal/install" },
+  "scheduler": {
+    "tasks": {
+      "daily-post": {
+        "endpoint": "/internal/scheduler/daily-post",
+        "cron": "0 0 * * *"
+      }
+    }
+  },
+  "settings": {
+    "subreddit": {
+      "daily-posts": {
+        "type": "boolean",
+        "label": "Post a new BODY HOP challenge every day at 00:00 UTC",
+        "defaultValue": false
+      }
+    }
+  },
+  "scripts": { "dev": "npm run watch", "build": "npm run build" },
+  "dev": { "subreddit": "body_hop_dev" }
+}
