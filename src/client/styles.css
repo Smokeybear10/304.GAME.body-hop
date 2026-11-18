@@ -395,46 +395,6 @@ kbd {
   flex-shrink: 0;
   margin-left: auto;
 }
-.switch-button {
-  width: 108px;
-  min-width: 108px;
-  min-height: 60px;
-  flex-shrink: 0;
-  margin-left: auto;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  padding: 6px;
-  border: 1px solid #aab798;
-  border-radius: 5px;
-  color: #e6e6c7;
-  background: #344238;
-  font: bold 12px/1.2 "Courier New", monospace;
-  touch-action: none;
-  transition: background-color 100ms, border-color 100ms, color 100ms;
-}
-.switch-button[hidden] {
-  display: none;
-}
-.switch-button small {
-  font: 11px/1.25 Georgia, serif;
-}
-.switch-button kbd {
-  color: inherit;
-  border-color: #aab79888;
-}
-.switch-button:disabled,
-.switch-button[data-ready="false"] {
-  color: #a99e8a;
-  background: #282528;
-  border-color: #62584d;
-}
-.switch-button:not(:disabled):active,
-.switch-button.held {
-  background: #53664a;
-  color: #e6e6c7;
-}
 .ability-button {
   --charge: 1;
   position: relative;
@@ -1228,12 +1188,6 @@ body[data-result="true"] .overlay {
     flex-direction: column;
     gap: 10px;
   }
-  .switch-button {
-    width: 90px;
-    min-width: 90px;
-    min-height: 48px;
-    margin: 0;
-  }
   #control-tip {
     display: none;
   }
@@ -1504,11 +1458,6 @@ body[data-phase="reward"] .screen {
     min-width: 0;
     gap: 10px;
   }
-  .switch-button {
-    width: 100px;
-    min-width: 100px;
-    min-height: 48px;
-  }
   .ability-button {
     width: 100%;
     min-width: 110px;
@@ -1698,10 +1647,6 @@ body[data-phase="reward"] .screen {
   .ability-button {
     height: 56px;
     padding: 14px;
-  }
-  .switch-button {
-    width: 100%;
-    min-height: 52px;
   }
   #ability-name {
     font-size: 14px;

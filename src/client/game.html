@@ -82,13 +82,13 @@
             <span class="hud-label">CHAMBER</span
             ><span id="chamber-value">01 / 06</span>
           </div>
-          <p id="health-note" class="health-note" role="status">Get close. Switch bodies. Recover 1 life.</p>
+          <p id="health-note" class="health-note" role="status">Walk onto a fresh body. Recover 1 life.</p>
         </div>
         <div class="stage-wrap">
           <div
             id="world"
             role="application"
-            aria-label="Move with WASD or arrows. Aim with the mouse. Left-click or press Space to attack. Hold to repeat Spit; press again for each Ram or Pounce. Right-click or press E to switch to the highlighted nearby body, even during an attack, and recover 1 life. You have 3 life. Enemies die in one hit. Clear the chamber, then leave through the opening above."
+            aria-label="Move with WASD or arrows. Aim with the mouse. Left-click or press Space to attack. Hold to repeat Spit; press again for each Ram or Pounce. Walk onto a fresh body to switch and recover 1 life. You have 3 life. Enemies die in one hit. Clear the chamber, then leave through the opening above."
           ></div>
           <div id="live-hint" aria-live="polite"></div>
           <div id="daily-foreshadow" hidden></div>
@@ -114,10 +114,6 @@
           </div>
           <p id="control-tip"></p>
           <div class="action-controls">
-            <button id="switch-button" class="switch-button" type="button" hidden>
-              <span>SWITCH <kbd>E</kbd></span>
-              <small id="switch-target"></small>
-            </button>
             <button id="ability-button" class="ability-button" type="button">
               <span id="ability-name">SPIT</span
               ><span id="ability-state" class="sr-only">Ready</span

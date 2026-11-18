@@ -840,8 +840,8 @@ export class BodyHopScene extends Phaser.Scene {
     }
     const input = this.hooks.getInput(),
       player = actors.find((actor) => actor.id === run.playerId)!;
-    const nearbyBody = input?.switchTarget ?? getNearbyBody(run);
-    const switchReady = nearbyBody && canSwitchBody(run, nearbyBody.id);
+    const nearbyBody = input ? input.switchTarget : getNearbyBody(run);
+    const switchReady = nearbyBody && !player.action && canSwitchBody(run, nearbyBody.id);
     const aliveCorpses = new Set<number>();
     for (const corpse of run.corpses) {
       if (corpse.consumed) continue;

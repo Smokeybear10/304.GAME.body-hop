@@ -1,7 +1,6 @@
 import {
   EMPTY_INPUT,
   getPlayer,
-  getNearbyBody,
   canSwitchBody,
   hasLineOfSight,
 } from "../shared/engine";
@@ -15,9 +14,6 @@ type Drag = {
   x: number;
   y: number;
 };
-const SWITCH_BUFFER_MS = 220;
-const SWITCH_APPROACH_RANGE = BODY_SWITCH_RANGE + 36;
-
 export class GameInput {
   private keys = new Set<string>();
   private moveDrag: Drag | null = null;
@@ -26,14 +22,13 @@ export class GameInput {
   private targetDistance = LEAP_DISTANCE;
   private mouse: Vec2 | null = null;
   private abilityQueuedUntil = 0;
-  private pendingSwitch: { id: number; until: number; source: "mouse" | "keyboard" | "button" } | null = null;
-  private switchPointerId: number | null = null;
+  private blockedBodies = new Set<number>();
   private queuedAbilitySource: "mouse" | "keyboard" | "pad" | null = null;
   private queuedAim: Vec2 | null = null;
   private queuedAimDistance: number | null = null;
   private specialBlocked = false;
   private hostId: number;
-  private phase: Run["phase"];
+  private runId: string;
   private attack = false;
   private mouseButtons = 0;
   private mousePointerId: number | null = null;
@@ -47,7 +42,8 @@ export class GameInput {
     private onPause: () => void
   ) {
     this.hostId = getPlayer(this.getRun()).id;
-    this.phase = this.getRun().phase;
+    this.runId = this.getRun().runId;
+    this.blockNearbyBodies();
     const options = { signal: this.controller.signal };
     const updateBounds = () => {
       const r = canvas.getBoundingClientRect();
@@ -91,14 +87,10 @@ export class GameInput {
             "ArrowLeft",
             "ArrowRight",
             "Space",
-            "KeyE",
           ].includes(event.code)
         )
           event.preventDefault();
-        const wasDown = this.keys.has(event.code);
         this.keys.add(event.code);
-        if (event.code === "KeyE" && !event.repeat && !wasDown)
-          this.queueSwitch("keyboard");
         if (event.code === "Space" && !event.repeat) {
           this.aimAtPointerOrEnemy();
           this.queueAbility("keyboard");
@@ -153,7 +145,7 @@ export class GameInput {
       "pointerdown",
       (event) => {
         if (
-          event.pointerType !== "mouse" ||
+          event.pointerType !== "mouse" || event.button !== 0 ||
           !["playing", "cleared"].includes(this.getRun().phase)
         )
           return;
@@ -182,7 +174,6 @@ export class GameInput {
         this.mouseButtons = 0;
         this.mousePointerId = null;
         this.attack = false;
-        if (this.pendingSwitch?.source === "mouse") this.pendingSwitch = null;
         if (this.queuedAbilitySource === "mouse") {
           this.abilityQueuedUntil = 0;
           this.queuedAbilitySource = null;
@@ -194,40 +185,6 @@ export class GameInput {
     );
     this.bindPad("move-pad", "move");
     this.bindPad("ability-button", "action");
-    const switchButton = document.getElementById("switch-button");
-    if (!switchButton) throw new Error("Missing game control switch-button");
-    switchButton.addEventListener("keydown", (event) => {
-      if (event.repeat && ["Space", "Enter"].includes(event.code))
-        event.preventDefault();
-    }, options);
-    switchButton.addEventListener("pointerdown", (event) => {
-      if (
-        this.switchPointerId !== null ||
-        (event.pointerType === "mouse" && event.button !== 0) ||
-        !["playing", "cleared"].includes(this.getRun().phase)
-      ) return;
-      event.preventDefault();
-      this.switchPointerId = event.pointerId;
-      switchButton.setPointerCapture(event.pointerId);
-      switchButton.classList.add("held");
-      this.queueSwitch("button");
-      this.canvas.focus({ preventScroll: true });
-    }, options);
-    const releaseSwitch = (event: PointerEvent, cancelled: boolean) => {
-      if (event.pointerId !== this.switchPointerId) return;
-      this.switchPointerId = null;
-      switchButton.classList.remove("held");
-      if (cancelled && this.pendingSwitch?.source === "button")
-        this.pendingSwitch = null;
-    };
-    switchButton.addEventListener("pointerup", (event) => releaseSwitch(event, false), options);
-    switchButton.addEventListener("pointercancel", (event) => releaseSwitch(event, true), options);
-    switchButton.addEventListener("lostpointercapture", (event) => releaseSwitch(event, true), options);
-    switchButton.addEventListener("click", (event) => {
-      if (event.detail !== 0) return;
-      this.queueSwitch("keyboard");
-      this.canvas.focus({ preventScroll: true });
-    }, options);
   }
   private updateMouseButtons(event: PointerEvent) {
     if (event.pointerId !== this.mousePointerId) return;
@@ -238,7 +195,6 @@ export class GameInput {
       this.attack = true;
     }
     if (!(event.buttons & 1) && (previous & 1)) this.attack = false;
-    if ((event.buttons & 2) && !(previous & 2)) this.queueSwitch("mouse");
     if (event.buttons === 0) this.mousePointerId = null;
   }
   private toWorld(x: number, y: number): Vec2 {
@@ -384,30 +340,31 @@ export class GameInput {
     this.queuedAim = aim ? { ...aim } : null;
     this.queuedAimDistance = aim ? this.targetDistance : null;
   }
-  private queueSwitch(source: "mouse" | "keyboard" | "button") {
-    this.syncHost();
-    const body = this.switchTarget;
-    if (!body) return;
-    this.pendingSwitch = { id: body.id, until: performance.now() + SWITCH_BUFFER_MS, source };
-    this.abilityQueuedUntil = 0;
-    this.queuedAbilitySource = null;
-    this.queuedAim = null;
-    this.queuedAimDistance = null;
+  private blockNearbyBodies() {
+    const run = this.getRun(), player = getPlayer(run);
+    this.blockedBodies = new Set(run.corpses.filter(corpse =>
+      !corpse.spent && !corpse.consumed &&
+      Math.hypot(corpse.x - player.x, corpse.y - player.y) <= BODY_SWITCH_RANGE
+    ).map(corpse => corpse.id));
   }
   private syncHost() {
     const run = this.getRun(), player = getPlayer(run);
-    if (run.phase !== this.phase) {
-      this.phase = run.phase;
-      this.pendingSwitch = null;
+    if (player.id !== this.hostId || run.runId !== this.runId) {
+      this.hostId = player.id;
+      this.runId = run.runId;
+      this.blockNearbyBodies();
+      this.abilityQueuedUntil = 0;
+      this.queuedAbilitySource = null;
+      this.queuedAim = null;
+      this.queuedAimDistance = null;
+      this.specialBlocked = this.attack || this.keys.has("Space") || this.actionDrag !== null;
     }
-    if (player.id === this.hostId) return;
-    this.hostId = player.id;
-    this.pendingSwitch = null;
-    this.abilityQueuedUntil = 0;
-    this.queuedAbilitySource = null;
-    this.queuedAim = null;
-    this.queuedAimDistance = null;
-    this.specialBlocked = this.attack || this.keys.has("Space") || this.actionDrag !== null;
+    for (const id of this.blockedBodies) {
+      const corpse = run.corpses.find(body => body.id === id);
+      if (!corpse || corpse.spent || corpse.consumed ||
+        Math.hypot(corpse.x - player.x, corpse.y - player.y) > BODY_SWITCH_RANGE)
+        this.blockedBodies.delete(id);
+    }
   }
   private movement(): Vec2 {
     if (this.moveDrag) {
@@ -443,21 +400,16 @@ export class GameInput {
     else if (!manualDrag) this.aimAtPointerOrEnemy();
     const movement = this.movement();
     const run = this.getRun(), player = getPlayer(run);
-    const pending = this.pendingSwitch;
-    const body = pending ? run.corpses.find((corpse) => corpse.id === pending.id) : null;
-    if (pending && (
-      now > pending.until ||
-      !["playing", "cleared"].includes(run.phase) ||
-      run.core <= 0 || player.hp <= 0 ||
-      !body || body.spent || body.consumed ||
-      Math.hypot(body.x - player.x, body.y - player.y) > SWITCH_APPROACH_RANGE ||
-      !hasLineOfSight(run, player, body)
-    )) this.pendingSwitch = null;
-    const switching = this.pendingSwitch !== null;
-    const hopCommitId = this.pendingSwitch && canSwitchBody(run, this.pendingSwitch.id)
-      ? this.pendingSwitch.id : null;
-    if (hopCommitId !== null) this.pendingSwitch = null;
-    const abilityPressed = !switching && !this.specialBlocked &&
+    const body = this.switchTarget;
+    const hopCommitId = (movement.x || movement.y) && !player.action &&
+      body && canSwitchBody(run, body.id) ? body.id : null;
+    if (hopCommitId !== null) {
+      this.abilityQueuedUntil = 0;
+      this.queuedAbilitySource = null;
+      this.queuedAim = null;
+      this.queuedAimDistance = null;
+    }
+    const abilityPressed = hopCommitId === null && !this.specialBlocked &&
       !player.action && player.stunMs <= TICK_MS && player.specialCooldownMs <= TICK_MS &&
       (now <= this.abilityQueuedUntil ||
         (player.species === "spitter" && (this.attack || this.keys.has("Space"))));
@@ -485,15 +437,10 @@ export class GameInput {
   get switchTarget(): Corpse | null {
     const run = this.getRun(), player = getPlayer(run);
     if (!["playing", "cleared"].includes(run.phase) || run.core <= 0 || player.hp <= 0) return null;
-    const eligible = (corpse: Corpse) => !corpse.spent && !corpse.consumed &&
-      Math.hypot(corpse.x - player.x, corpse.y - player.y) <= SWITCH_APPROACH_RANGE &&
-      hasLineOfSight(run, player, corpse);
-    if (this.pendingSwitch && performance.now() <= this.pendingSwitch.until) {
-      const pending = run.corpses.find(corpse => corpse.id === this.pendingSwitch?.id);
-      if (pending && eligible(pending)) return pending;
-    }
-    return getNearbyBody(run) ?? run.corpses
-      .filter(eligible)
+    return run.corpses.filter(corpse => !corpse.spent && !corpse.consumed &&
+      !this.blockedBodies.has(corpse.id) &&
+      Math.hypot(corpse.x - player.x, corpse.y - player.y) <= BODY_SWITCH_RANGE &&
+      hasLineOfSight(run, player, corpse))
       .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) -
         Math.hypot(b.x - player.x, b.y - player.y) || a.id - b.id)[0] ?? null;
   }
@@ -507,18 +454,15 @@ export class GameInput {
     return this.actionAiming || this.mouse !== null;
   }
   clear() {
+    this.syncHost();
     this.keys.clear();
     this.moveDrag = null;
     this.actionDrag = null;
     this.abilityQueuedUntil = 0;
-    this.pendingSwitch = null;
-    this.switchPointerId = null;
     this.queuedAbilitySource = null;
     this.queuedAim = null;
     this.queuedAimDistance = null;
     this.specialBlocked = false;
-    this.hostId = getPlayer(this.getRun()).id;
-    this.phase = this.getRun().phase;
     this.targetDistance = LEAP_DISTANCE;
     this.attack = false;
     this.mouseButtons = 0;

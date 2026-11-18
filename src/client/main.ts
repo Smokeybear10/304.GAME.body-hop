@@ -13,7 +13,6 @@ import {
 } from "./art";
 import {
   TICK_MS,
-  BODY_SWITCH_RANGE,
   ENCOUNTER_COUNT,
   MUTATIONS,
   SPECIES,
@@ -32,8 +31,6 @@ import {
   pause,
   resume,
   getPlayer,
-  getNearbyBody,
-  canSwitchBody,
 } from "../shared/engine";
 import type {
   GameEvent,
@@ -320,7 +317,7 @@ function healthPips(value: number, maximum: number) {
 }
 
 function healthExplanation() {
-  return "Switch into a fresh body to recover 1 life, up to 3. At 0 life, the run ends.";
+  return "Walk onto a fresh body to switch and recover 1 life, up to 3. At 0 life, the run ends.";
 }
 
 function updateHud() {
@@ -382,31 +379,10 @@ function updateHud() {
   setText("health-note",
     run.core <= 0 ? "No life left. This run is over."
       : performance.now() < healthNoticeUntil ? healthNotice
-      : lowLife ? "1 LIFE · Switch bodies to heal."
-      : touchControls ? "SWITCH to a nearby body. Recover 1 life." : "Right-click / E: switch nearby. Heal 1."
+      : lowLife ? "1 LIFE · Walk onto a fresh body to heal."
+      : "Walk onto a fresh body. Recover 1 life."
   );
   element("health-note").dataset.notice = performance.now() < healthNoticeUntil ? healthNoticeKind : "";
-  const nearby = run.phase === "playing" || run.phase === "cleared" ? getNearbyBody(run) : null;
-  const switchTarget = input?.switchTarget ?? nearby;
-  const switchButton = element<HTMLButtonElement>("switch-button");
-  switchButton.hidden = run.phase !== "playing" && run.phase !== "cleared";
-  switchButton.disabled = !switchTarget;
-  const switchReady = switchTarget !== null && canSwitchBody(run, switchTarget.id);
-  switchButton.dataset.ready = String(switchReady);
-  if (switchTarget) {
-    const name = SPECIES[switchTarget.species].name;
-    const recovery = run.core < run.maxCore ? "+1 LIFE" : "LIFE FULL";
-    const approaching = Math.hypot(switchTarget.x - player.x, switchTarget.y - player.y) > BODY_SWITCH_RANGE;
-    setText("switch-target", `${name} · ${switchReady ? recovery : approaching ? "MOVE CLOSER" : "RECOVERING"}`);
-    switchButton.setAttribute("aria-label", `${approaching ? "Move closer to switch" : "Switch"} to ${name}${run.core < run.maxCore ? " and recover 1 life" : ". Life is full"}`);
-    switchButton.title = switchReady ? `Right-click / E · Switch to ${name} · ${recovery}`
-      : approaching ? "Move closer. A slightly early press is remembered."
-      : "Switch is recovering. A slightly early press is remembered.";
-  } else {
-    setText("switch-target", "Move near a body");
-    switchButton.setAttribute("aria-label", "Switch bodies. Move closer to a defeated enemy.");
-    switchButton.title = "Move near a defeated enemy. Its body will light up.";
-  }
   const abilityReady =
     !player.action && player.stunMs <= 0 && player.specialCooldownMs <= 0;
   setText(
@@ -564,7 +540,7 @@ function renderReady() {
     <p>${first ? "Kill an enemy.<br>Choose your next body." : chamber.description}</p>
     ${
       first
-        ? `<p class="intro-rule">One hit drops an enemy.<br>Each body has one attack.</p><p class="health-rule" title="${healthExplanation()}"><strong>3 hearts. At 0, the run ends.</strong><br>${touchControls ? "Get close. Tap SWITCH. Recover 1 life." : "Get close. E to switch. Recover 1 life."}</p>`
+        ? `<p class="intro-rule">One hit drops an enemy.<br>Each body has one attack.</p><p class="health-rule" title="${healthExplanation()}"><strong>3 hearts. At 0, the run ends.</strong><br>Walk onto a fresh body to switch and recover 1 life.</p>`
         : `<p class="small-copy">${
             SPECIES[getPlayer(run).species].name
           } · ${healthAmount(run.core)}/${run.maxCore} life · ${
@@ -786,8 +762,8 @@ function renderSettings() {
     }></label>
     <p class="small-copy">${
       touchControls
-        ? "Drag the left pad to move. Drag your attack to aim, then release. A shorter drag makes a shorter Pounce. Get close to a defeated body and tap SWITCH."
-        : "WASD / arrows: move. Mouse: aim. Left-click / Space: attack. Hold to repeat Spit; press again for each Ram or Pounce. Right-click / E: switch to the highlighted body, even during an attack. Escape: pause."
+        ? "Drag the left pad to move. Drag your attack to aim, then release. A shorter drag makes a shorter Pounce. Walk onto a fresh body to switch and recover 1 life."
+        : "WASD / arrows: move. Mouse: aim. Left-click / Space: attack. Hold to repeat Spit; press again for each Ram or Pounce. Walk onto a fresh body to switch and recover 1 life. Escape: pause."
     }</p>
     <p class="fine-print">Enemies die in one hit. Kills leave bodies you can choose to use once. Clear the chamber, then leave through the opening above.</p>
     <p class="health-rule"><strong>Red hearts = life.</strong> ${healthExplanation()}<br>Dodge with the small ring at your center.</p>
@@ -1033,7 +1009,7 @@ function connectGame() {
   overlay.classList.remove("hidden");
   element("control-tip").innerHTML = touchControls
     ? "Drag your attack to aim.<br>Tap to target a threat."
-    : "<span><kbd>WASD</kbd> move · mouse aim</span><span>Right-click / <kbd>E</kbd> switch</span>";
+    : "<span><kbd>WASD</kbd> move · mouse aim</span><span>Click / <kbd>Space</kbd> attack</span>";
   element(
     "challenge-label"
   ).textContent = `DAILY ESCAPE · ${store.bootstrap.challenge.date
