@@ -13,6 +13,7 @@ import {
 } from "./art";
 import {
   TICK_MS,
+  BODY_SWITCH_RANGE,
   ENCOUNTER_COUNT,
   MUTATIONS,
   SPECIES,
@@ -386,17 +387,21 @@ function updateHud() {
   );
   element("health-note").dataset.notice = performance.now() < healthNoticeUntil ? healthNoticeKind : "";
   const nearby = run.phase === "playing" || run.phase === "cleared" ? getNearbyBody(run) : null;
+  const switchTarget = input?.switchTarget ?? nearby;
   const switchButton = element<HTMLButtonElement>("switch-button");
   switchButton.hidden = run.phase !== "playing" && run.phase !== "cleared";
-  switchButton.disabled = !nearby;
-  const switchReady = nearby !== null && canSwitchBody(run, nearby.id);
+  switchButton.disabled = !switchTarget;
+  const switchReady = switchTarget !== null && canSwitchBody(run, switchTarget.id);
   switchButton.dataset.ready = String(switchReady);
-  if (nearby) {
-    const name = SPECIES[nearby.species].name;
+  if (switchTarget) {
+    const name = SPECIES[switchTarget.species].name;
     const recovery = run.core < run.maxCore ? "+1 LIFE" : "LIFE FULL";
-    setText("switch-target", `${name} · ${switchReady ? recovery : "RECOVERING"}`);
-    switchButton.setAttribute("aria-label", `Switch to ${name}${run.core < run.maxCore ? " and recover 1 life" : ". Life is full"}`);
-    switchButton.title = switchReady ? `Right-click / E · Switch to ${name} · ${recovery}` : "Switch is recovering. A slightly early press is remembered.";
+    const approaching = Math.hypot(switchTarget.x - player.x, switchTarget.y - player.y) > BODY_SWITCH_RANGE;
+    setText("switch-target", `${name} · ${switchReady ? recovery : approaching ? "MOVE CLOSER" : "RECOVERING"}`);
+    switchButton.setAttribute("aria-label", `${approaching ? "Move closer to switch" : "Switch"} to ${name}${run.core < run.maxCore ? " and recover 1 life" : ". Life is full"}`);
+    switchButton.title = switchReady ? `Right-click / E · Switch to ${name} · ${recovery}`
+      : approaching ? "Move closer. A slightly early press is remembered."
+      : "Switch is recovering. A slightly early press is remembered.";
   } else {
     setText("switch-target", "Move near a body");
     switchButton.setAttribute("aria-label", "Switch bodies. Move closer to a defeated enemy.");
@@ -1082,12 +1087,14 @@ function connectGame() {
     settingsOpen = true;
     updateUi(true);
   });
-  bind("sound-button", () => {
+  element("sound-button").addEventListener("click", (event) => {
     audio.setMuted(!audio.muted);
     savePreferences();
     updateHud();
     if (!audio.muted)
       void audio.unlock().catch(() => hint("Sound could not start."));
+    if (event.detail > 0 && (run.phase === "playing" || run.phase === "cleared"))
+      renderer?.game.canvas.focus({ preventScroll: true });
   });
   window.addEventListener("blur", () => pauseGame());
   document.addEventListener("visibilitychange", () => {

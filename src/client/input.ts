@@ -6,7 +6,7 @@ import {
   hasLineOfSight,
 } from "../shared/engine";
 import { BODY_SWITCH_RANGE, LEAP_DISTANCE, TICK_MS, WORLD_HEIGHT, WORLD_WIDTH } from "../shared/content";
-import type { InputFrame, Run, Vec2 } from "../shared/types";
+import type { Corpse, InputFrame, Run, Vec2 } from "../shared/types";
 
 type Drag = {
   id: number;
@@ -15,6 +15,9 @@ type Drag = {
   x: number;
   y: number;
 };
+const SWITCH_BUFFER_MS = 220;
+const SWITCH_APPROACH_RANGE = BODY_SWITCH_RANGE + 36;
+
 export class GameInput {
   private keys = new Set<string>();
   private moveDrag: Drag | null = null;
@@ -345,6 +348,8 @@ export class GameInput {
     );
   }
   private aimAtPointerOrEnemy() {
+    if (this.actionDrag && Math.hypot(this.actionDrag.x - this.actionDrag.startX, this.actionDrag.y - this.actionDrag.startY) > 8)
+      return;
     const run = this.getRun(),
       player = getPlayer(run);
     let target = this.mouse;
@@ -359,6 +364,9 @@ export class GameInput {
       target = enemy ?? null;
     }
     if (!target) {
+      const movement = this.movement();
+      const length = Math.hypot(movement.x, movement.y);
+      if (length > 0) this.aim = { x: movement.x / length, y: movement.y / length };
       this.targetDistance = LEAP_DISTANCE;
       return;
     }
@@ -378,9 +386,9 @@ export class GameInput {
   }
   private queueSwitch(source: "mouse" | "keyboard" | "button") {
     this.syncHost();
-    const run = this.getRun(), body = getNearbyBody(run);
-    if (!body || run.core <= 0 || getPlayer(run).hp <= 0) return;
-    this.pendingSwitch = { id: body.id, until: performance.now() + 220, source };
+    const body = this.switchTarget;
+    if (!body) return;
+    this.pendingSwitch = { id: body.id, until: performance.now() + SWITCH_BUFFER_MS, source };
     this.abilityQueuedUntil = 0;
     this.queuedAbilitySource = null;
     this.queuedAim = null;
@@ -401,6 +409,21 @@ export class GameInput {
     this.queuedAimDistance = null;
     this.specialBlocked = this.attack || this.keys.has("Space") || this.actionDrag !== null;
   }
+  private movement(): Vec2 {
+    if (this.moveDrag) {
+      const dx = this.moveDrag.x - this.moveDrag.startX,
+        dy = this.moveDrag.y - this.moveDrag.startY,
+        distance = Math.hypot(dx, dy),
+        strength = Math.min(1, Math.max(0, (distance - 4) / 24));
+      return distance > 0 ? { x: dx / distance * strength, y: dy / distance * strength } : { x: 0, y: 0 };
+    }
+    const x = Number(this.keys.has("KeyD") || this.keys.has("ArrowRight")) -
+      Number(this.keys.has("KeyA") || this.keys.has("ArrowLeft"));
+    const y = Number(this.keys.has("KeyS") || this.keys.has("ArrowDown")) -
+      Number(this.keys.has("KeyW") || this.keys.has("ArrowUp"));
+    const length = Math.max(1, Math.hypot(x, y));
+    return { x: x / length, y: y / length };
+  }
   read(): InputFrame {
     this.syncHost();
     if (!this.attack && !this.keys.has("Space") && !this.actionDrag)
@@ -418,21 +441,7 @@ export class GameInput {
       this.targetDistance = this.queuedAimDistance ?? LEAP_DISTANCE;
     }
     else if (!manualDrag) this.aimAtPointerOrEnemy();
-    let x =
-      Number(this.keys.has("KeyD") || this.keys.has("ArrowRight")) -
-      Number(this.keys.has("KeyA") || this.keys.has("ArrowLeft"));
-    let y =
-      Number(this.keys.has("KeyS") || this.keys.has("ArrowDown")) -
-      Number(this.keys.has("KeyW") || this.keys.has("ArrowUp"));
-    if (this.moveDrag) {
-      const dx = this.moveDrag.x - this.moveDrag.startX,
-        dy = this.moveDrag.y - this.moveDrag.startY,
-        distance = Math.hypot(dx, dy),
-        strength = Math.min(1, Math.max(0, (distance - 4) / 24));
-      x = distance > 0 ? dx / distance * strength : 0;
-      y = distance > 0 ? dy / distance * strength : 0;
-    }
-    const len = Math.max(1, Math.hypot(x, y));
+    const movement = this.movement();
     const run = this.getRun(), player = getPlayer(run);
     const pending = this.pendingSwitch;
     const body = pending ? run.corpses.find((corpse) => corpse.id === pending.id) : null;
@@ -441,7 +450,7 @@ export class GameInput {
       !["playing", "cleared"].includes(run.phase) ||
       run.core <= 0 || player.hp <= 0 ||
       !body || body.spent || body.consumed ||
-      Math.hypot(body.x - player.x, body.y - player.y) > BODY_SWITCH_RANGE ||
+      Math.hypot(body.x - player.x, body.y - player.y) > SWITCH_APPROACH_RANGE ||
       !hasLineOfSight(run, player, body)
     )) this.pendingSwitch = null;
     const switching = this.pendingSwitch !== null;
@@ -454,8 +463,8 @@ export class GameInput {
         (player.species === "spitter" && (this.attack || this.keys.has("Space"))));
     const result = {
       ...EMPTY_INPUT,
-      moveX: x / len,
-      moveY: y / len,
+      moveX: movement.x,
+      moveY: movement.y,
       aimX: this.aim.x,
       aimY: this.aim.y,
       aimDistance: this.targetDistance,
@@ -472,6 +481,21 @@ export class GameInput {
       this.queuedAimDistance = null;
     }
     return result;
+  }
+  get switchTarget(): Corpse | null {
+    const run = this.getRun(), player = getPlayer(run);
+    if (!["playing", "cleared"].includes(run.phase) || run.core <= 0 || player.hp <= 0) return null;
+    const eligible = (corpse: Corpse) => !corpse.spent && !corpse.consumed &&
+      Math.hypot(corpse.x - player.x, corpse.y - player.y) <= SWITCH_APPROACH_RANGE &&
+      hasLineOfSight(run, player, corpse);
+    if (this.pendingSwitch && performance.now() <= this.pendingSwitch.until) {
+      const pending = run.corpses.find(corpse => corpse.id === this.pendingSwitch?.id);
+      if (pending && eligible(pending)) return pending;
+    }
+    return getNearbyBody(run) ?? run.corpses
+      .filter(eligible)
+      .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) -
+        Math.hypot(b.x - player.x, b.y - player.y) || a.id - b.id)[0] ?? null;
   }
   get aimDirection() {
     return this.aim;
