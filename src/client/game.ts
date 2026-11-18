@@ -113,6 +113,7 @@ export class BodyHopScene extends Phaser.Scene {
   private contacts: Contact[] = [];
   private aftermath: Aftermath[] = [];
   private corpseBirths = new Map<number, { angle: number; at: number }>();
+  private arrivals = new Map<number, number>();
   private transfers: Transfer[] = [];
   private flashes = new Map<number, number>();
   private recoil = new Map<number, number>();
@@ -362,6 +363,7 @@ export class BodyHopScene extends Phaser.Scene {
     this.contacts = [];
     this.aftermath = [];
     this.corpseBirths.clear();
+    this.arrivals.clear();
     this.transfers.forEach((transfer) => transfer.departure?.destroy());
     this.transfers = [];
     this.keeperArrivalMs = 0;
@@ -381,15 +383,12 @@ export class BodyHopScene extends Phaser.Scene {
         departed.set(event.fromId, { x: event.fromX, y: event.fromY });
     let fallen: { x: number; y: number; angle: number } | null = null;
     for (const event of events) {
-      if (
-        event.type === "spawn" &&
-        event.ids.some((id) =>
-          this.hooks
-            .getRun()
-            .actors.some((actor) => actor.id === id && actor.elite)
-        )
-      )
-        this.keeperArrivalMs = 2400;
+      if (event.type === "spawn") {
+        for (const id of event.ids) this.arrivals.set(id, this.elapsed);
+        if (event.ids.some((id) =>
+          this.hooks.getRun().actors.some((actor) => actor.id === id && actor.elite)
+        )) this.keeperArrivalMs = 2400;
+      }
       if (event.type === "mutation")
         this.mutationPulse.set(event.mutationId, 500);
       if (event.type === "attack" && event.phase === "release") {
@@ -841,7 +840,7 @@ export class BodyHopScene extends Phaser.Scene {
     }
     const input = this.hooks.getInput(),
       player = actors.find((actor) => actor.id === run.playerId)!;
-    const nearbyBody = getNearbyBody(run);
+    const nearbyBody = input?.switchTarget ?? getNearbyBody(run);
     const switchReady = nearbyBody && canSwitchBody(run, nearbyBody.id);
     const aliveCorpses = new Set<number>();
     for (const corpse of run.corpses) {
@@ -921,7 +920,8 @@ export class BodyHopScene extends Phaser.Scene {
     for (const actor of actors)
       if (
         actor.hp > 0 &&
-        (actor.action?.stage === "windup" || actor.action?.kind === "leap")
+        (actor.action?.stage === "windup" || actor.action?.kind === "leap" ||
+          (actor.faction === "enemy" && actor.action?.kind === "charge"))
       )
         this.drawTelegraph(actor);
     if (
@@ -1049,6 +1049,23 @@ export class BodyHopScene extends Phaser.Scene {
       let lift = 0,
         squashX = 1,
         squashY = 1;
+      const appearedAt = this.arrivals.get(actor.id);
+      if (appearedAt !== undefined) {
+        const progress = Math.min(1, (this.elapsed - appearedAt) / 480);
+        if (progress >= 1) this.arrivals.delete(actor.id);
+        else {
+          const remaining = 1 - progress;
+          const radius = actor.radius + 9 + (this.hooks.reducedMotion() ? 0 : progress * 18);
+          ground.fillStyle(BLACK, remaining * 0.45)
+            .fillEllipse(actor.x, actor.y + actor.radius * 0.4, radius * 2, radius);
+          marks.lineStyle(3, PAPER, remaining * 0.7)
+            .strokeEllipse(actor.x, actor.y + actor.radius * 0.4, radius * 2, radius);
+          if (!this.hooks.reducedMotion() && !actor.action) {
+            squashX *= 1 + remaining * 0.18;
+            squashY *= 1 - remaining * 0.24;
+          }
+        }
+      }
       if (actor.action) {
         const progress =
           actor.action.timeMs / Math.max(1, actor.action.durationMs);
@@ -1239,6 +1256,7 @@ export class BodyHopScene extends Phaser.Scene {
         this.actorImages.delete(id);
         this.hitReactions.delete(id);
         this.gait.delete(id);
+        this.arrivals.delete(id);
       }
     });
     for (const current of run.projectiles) {
@@ -1300,9 +1318,7 @@ export class BodyHopScene extends Phaser.Scene {
       }
     }
     this.drawEffects(dt);
-    const underFire = run.projectiles.some((shot) => shot.faction === "enemy") ||
-      actors.some((actor) => actor.faction === "enemy" && actor.action?.pattern);
-    if (player.hp > 0 && underFire && run.phase === "playing" &&
+    if (player.hp > 0 && run.phase === "playing" &&
       !(player.action?.kind === "leap" && player.action.stage === "active")) {
       const protectedBody = player.invulnerableMs > 0;
       front.lineStyle(4, BLACK, 0.95).strokeCircle(player.x, player.y, PLAYER_BULLET_RADIUS);
