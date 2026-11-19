@@ -3,7 +3,7 @@ import { ProgressStore } from "./persistence";
 import { GameInput } from "./input";
 import { GameAudio } from "./audio";
 import { mountGame } from "./game";
-import { getPostUrl } from "./platform";
+import { getHostMode, getPostUrl } from "./platform";
 import {
   createCorpseTexture,
   paintCreature,
@@ -1073,6 +1073,12 @@ function connectGame() {
       renderer?.game.canvas.focus({ preventScroll: true });
   });
   window.addEventListener("blur", () => pauseGame());
+  window.addEventListener("focus", () => {
+    if (getHostMode() === "inline") {
+      pauseGame();
+      audio.suspend();
+    }
+  });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       pauseGame();
