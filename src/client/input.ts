@@ -5,7 +5,7 @@ import {
   hasLineOfSight,
   previewCharge,
 } from "../shared/engine";
-import { BODY_SWITCH_RANGE, ENEMY_WALK_SPEED_SCALE, LEAP_DISTANCE, PLAYER_SPIT_SPEED, PLAYER_SPIT_WINDUP_MS, SPECIES, TICK_MS, WORLD_HEIGHT, WORLD_WIDTH } from "../shared/content";
+import { BODY_SWITCH_RANGE, CHARGE_SPEED, ENEMY_WALK_SPEED_SCALE, LEAP_DISTANCE, PLAYER_LEAP_BASE_MS, PLAYER_LEAP_RANGE_MS, PLAYER_MELEE_WINDUP_MS, PLAYER_SPIT_SPEED, PLAYER_SPIT_WINDUP_MS, SPECIES, TICK_MS, WORLD_HEIGHT, WORLD_WIDTH } from "../shared/content";
 import type { Actor, Corpse, InputFrame, Run, Vec2 } from "../shared/types";
 
 type Drag = {
@@ -336,6 +336,19 @@ export class GameInput {
     if (!hasLineOfSight(run, origin, forecast, 8)) return enemy;
     return { x: forecast.x + player.x - origin.x, y: forecast.y + player.y - origin.y };
   }
+  private airborneAtContact(run: Run, enemy: Actor): boolean {
+    const action = enemy.action;
+    if (action?.kind !== "leap" || action.stage !== "active") return false;
+    const player = getPlayer(run);
+    const distance = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+    const contactMs = player.species === "spitter"
+      ? PLAYER_SPIT_WINDUP_MS + Math.max(0, distance - player.radius - 7 - enemy.radius - 8) / PLAYER_SPIT_SPEED * 1000
+      : player.species === "beetle"
+      ? PLAYER_MELEE_WINDUP_MS + Math.max(0, distance - player.radius - enemy.radius) / CHARGE_SPEED * 1000
+      : PLAYER_MELEE_WINDUP_MS + PLAYER_LEAP_BASE_MS + Math.min(1, distance / LEAP_DISTANCE) * PLAYER_LEAP_RANGE_MS;
+    const readyMs = Math.max(player.specialCooldownMs, player.stunMs, 0);
+    return action.durationMs - action.timeMs > readyMs + contactMs + TICK_MS;
+  }
   private aimAtPointerOrEnemy() {
     if (this.actionDrag && Math.hypot(this.actionDrag.x - this.actionDrag.startX, this.actionDrag.y - this.actionDrag.startY) > 8)
       return;
@@ -344,8 +357,10 @@ export class GameInput {
     let target = this.mouse;
     if (target) this.targetSample = null;
     if (!target) {
-      const enemy = run.actors
-        .filter((a) => a.faction === "enemy" && a.hp > 0 && hasLineOfSight(run, player, a))
+      const enemies = run.actors
+        .filter((a) => a.faction === "enemy" && a.hp > 0 && hasLineOfSight(run, player, a));
+      const available = enemies.filter(enemy => !this.airborneAtContact(run, enemy));
+      const enemy = (available.length ? available : enemies)
         .sort(
           (a, b) =>
             Math.hypot(a.x - player.x, a.y - player.y) -

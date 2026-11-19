@@ -1,6 +1,6 @@
 import { CheckpointSchema } from './types.ts';
 import type { Actor, BulletPattern, Checkpoint, Challenge, Corpse, GameEvent, HealthModel, InputFrame, MutationId, Rect, Run, RunResult, Species, Vec2 } from './types.ts';
-import { BODY_SWITCH_COOLDOWN_MS, BODY_SWITCH_RANGE, CHARGE_DURATION_MS, CHARGE_SPEED, CONTENT_VERSION, ENCOUNTER_COUNT, ENEMY_WALK_SPEED_SCALE, EXIT_RADIUS, LEAP_DISTANCE, LEAP_RADIUS, MAX_ENEMY_PROJECTILES, MAX_PROJECTILES, PLAYER_BULLET_RADIUS, PLAYER_SPIT_SPEED, PLAYER_SPIT_WINDUP_MS, POSSESSION_CLEAR_RADIUS, SPECIES, TICK_MS, WORLD_HEIGHT, WORLD_WIDTH, getEncounter, getRewardOffers } from './content.ts';
+import { BODY_SWITCH_COOLDOWN_MS, BODY_SWITCH_RANGE, CHARGE_DURATION_MS, CHARGE_SPEED, CONTENT_VERSION, ENCOUNTER_COUNT, ENEMY_WALK_SPEED_SCALE, EXIT_RADIUS, LEAP_DISTANCE, LEAP_RADIUS, MAX_ENEMY_PROJECTILES, MAX_PROJECTILES, PLAYER_BULLET_RADIUS, PLAYER_LEAP_BASE_MS, PLAYER_LEAP_RANGE_MS, PLAYER_MELEE_WINDUP_MS, PLAYER_SPIT_SPEED, PLAYER_SPIT_WINDUP_MS, POSSESSION_CLEAR_RADIUS, SPECIES, TICK_MS, WORLD_HEIGHT, WORLD_WIDTH, getEncounter, getRewardOffers } from './content.ts';
 
 export const EMPTY_INPUT: InputFrame = { moveX: 0, moveY: 0, aimX: 0, aimY: -1, attackHeld: false, abilityPressed: false, assistedBasic: true, hopHeld: false, hopCommitId: null, hopCancelled: false };
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -510,7 +510,7 @@ function beginSpecial(run: Run, actor: Actor, dx: number, dy: number, generation
   const target = previewSpecial(run, actor, aim.x, aim.y, aimDistance);
   const pattern = enemy && (actor.species === 'spitter' || (actor.elite && actor.volleyCount % 2 === 1)) ? enemyPattern(run, actor, aim.x, aim.y) : undefined;
   actor.action = { kind: pattern || actor.species === 'spitter' ? 'spit' : actor.species === 'beetle' ? 'charge' : 'leap', stage: 'windup', timeMs: 0,
-    durationMs: pattern?.kind === 'ring' ? actor.elite ? 900 : 800 : enemy ? (actor.species === 'beetle' ? 700 : 620) : actor.species === 'spitter' ? PLAYER_SPIT_WINDUP_MS : 80,
+    durationMs: pattern?.kind === 'ring' ? actor.elite ? 900 : 800 : enemy ? (actor.species === 'beetle' ? 700 : 620) : actor.species === 'spitter' ? PLAYER_SPIT_WINDUP_MS : PLAYER_MELEE_WINDUP_MS,
     dirX: aim.x, dirY: aim.y, fromX: actor.x, fromY: actor.y, targetX: target.x, targetY: target.y, hitIds: [], generation, ...(actor.species === 'hopper' ? { aimDistance: pounceDistance(aimDistance) } : {}), ...(pattern ? { pattern } : {}) };
   actor.specialCooldownMs = enemy ? actor.elite ? 2600 : Math.max(1700, SPECIES[actor.species].enemySpecialMs - run.encounterIndex * 200) : SPECIES[actor.species].specialMs;
   if (enemy) actor.volleyCount += 1;
@@ -541,7 +541,7 @@ function updateAction(run: Run, actor: Actor, dt: number, events: GameEvent[]): 
       actor.action = null;
       return;
     }
-    action.durationMs = action.kind === 'charge' ? CHARGE_DURATION_MS : actor.faction === 'enemy' ? 480 : 140 + Math.min(1, distance(actor, { x: action.targetX, y: action.targetY }) / LEAP_DISTANCE) * 240;
+    action.durationMs = action.kind === 'charge' ? CHARGE_DURATION_MS : actor.faction === 'enemy' ? 480 : PLAYER_LEAP_BASE_MS + Math.min(1, distance(actor, { x: action.targetX, y: action.targetY }) / LEAP_DISTANCE) * PLAYER_LEAP_RANGE_MS;
     action.fromX = actor.x;
     action.fromY = actor.y;
     if (action.kind === 'charge') {
