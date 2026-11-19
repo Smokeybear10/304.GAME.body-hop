@@ -10,6 +10,7 @@ export class GameAudio {
   private lastEnemyHit = -Infinity;
   private lastEnemyDeath = -Infinity;
   private lastSurface = -Infinity;
+  private lastPlayerChargeSurface = -Infinity;
   private lastPatternTell = -Infinity;
   private lastImpact = { player: -Infinity, enemy: -Infinity, echo: -Infinity };
   muted = false;
@@ -204,8 +205,11 @@ export class GameAudio {
         }
       }
       if (event.type === "surface") {
-        if (now - this.lastSurface < 70) continue;
-        this.lastSurface = now;
+        const playerCharge = event.faction === "player" && event.kind === "charge";
+        const lastSurface = playerCharge ? this.lastPlayerChargeSurface : this.lastSurface;
+        if (now - lastSurface < 70) continue;
+        if (playerCharge) this.lastPlayerChargeSurface = now;
+        else this.lastSurface = now;
         const volume =
           event.faction === "player"
             ? 1
