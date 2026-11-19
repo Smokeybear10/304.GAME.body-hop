@@ -870,7 +870,11 @@ function renderResult(result: RunResult) {
     </figure>
     <p class="result-summary">${result.counters.hops} ${
     result.counters.hops === 1 ? "switch" : "switches"
-  } · ${clock(result.activeTimeMs)} active</p>
+  } · ${clock(result.activeTimeMs)} active${
+    store.bestProgress > result.completedEncounters
+      ? `<br>Best: ${store.bestProgress}/${ENCOUNTER_COUNT} chambers cleared`
+      : ""
+  }</p>
     <p class="result-build">${mutations || "No mutations"}</p>
     <div class="result-actions">
       <button id="retry-button" class="primary-button" type="button">${store.status === "conflict" ? "Reload saved run" : "Retry this escape"}</button>
