@@ -670,24 +670,26 @@ export class BodyHopScene extends Phaser.Scene {
         });
         if (!solidHit) continue;
         const angle = Math.atan2(event.dirY ?? 0, event.dirX ?? 1);
-        this.leaveMark(
-          event.x,
-          event.y,
-          angle,
-          event.radius * 0.85,
-          event.kind === "charge" ? "scar" : "remains"
-        );
-        this.contacts.push({
-          x: event.x,
-          y: event.y,
-          angle,
-          life: 230,
-          max: 230,
-          shell: true,
-          broken: true,
-          radial: event.kind !== "charge",
-        });
-        if (this.contacts.length > 32) this.contacts.shift();
+        if (event.kind !== "shock") {
+          this.leaveMark(
+            event.x,
+            event.y,
+            angle,
+            event.radius * 0.85,
+            event.kind === "charge" ? "scar" : "remains"
+          );
+          this.contacts.push({
+            x: event.x,
+            y: event.y,
+            angle,
+            life: 230,
+            max: 230,
+            shell: true,
+            broken: true,
+            radial: event.kind !== "charge",
+          });
+          if (this.contacts.length > 32) this.contacts.shift();
+        }
         this.burst(event.x, event.y, 7, 0xd7c89a, 150);
         if (!this.hooks.reducedMotion()) this.cameras.main.shake(75, 0.0015);
       }
