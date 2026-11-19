@@ -542,7 +542,7 @@ export class BodyHopScene extends Phaser.Scene {
           160
         );
         if (event.faction === "player" && !this.hooks.reducedMotion())
-          this.cameras.main.shake(80, event.coreDamage > 0 ? 0.003 : 0.0015);
+          this.cameras.main.shake(80, event.coreDamage > 0 ? 0.003 : 0.0015, true);
       }
       if (event.type === "death") {
         const image = this.actorImages.get(event.id);
