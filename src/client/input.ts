@@ -97,6 +97,8 @@ export class GameInput {
           ].includes(event.code)
         )
           event.preventDefault();
+        if (event.code === "Space" && event.repeat && !this.keys.has("Space"))
+          return;
         this.keys.add(event.code);
         if (event.code === "Space" && !event.repeat) {
           this.aimAtPointerOrEnemy();
