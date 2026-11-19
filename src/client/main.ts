@@ -381,7 +381,9 @@ function updateHud() {
       SPECIES[player.species].action.toUpperCase();
     if (touchControls)
       element("control-tip").innerHTML =
-        player.species === "hopper"
+        player.species === "spitter"
+          ? "Hold Spit to keep firing.<br>Drag to steer your shots."
+          : player.species === "hopper"
           ? "Drag to set your landing.<br>Short drag, short Pounce."
           : "Drag your attack to aim.<br>Tap to target a threat.";
   }
@@ -415,7 +417,9 @@ function updateHud() {
     )
   );
   element("ability-button").title = touchControls
-    ? `Drag to aim ${SPECIES[player.species].action}, then release`
+    ? player.species === "spitter"
+      ? "Hold to keep firing Spit; drag to aim"
+      : `Drag to aim ${SPECIES[player.species].action}, then release`
     : `${SPECIES[player.species].action} · click or Space`;
   element("sound-button").dataset.muted = String(audio.muted);
   element("sound-button").title = audio.muted ? "Unmute sound" : "Mute sound";
@@ -572,9 +576,11 @@ function renderReady() {
     <p class="fine-print">${
       first
         ? touchControls
-          ? `Left thumb moves. Drag ${
-              SPECIES[getPlayer(run).species].action
-            } to aim; release to use it.`
+          ? getPlayer(run).species === "spitter"
+            ? "Left thumb moves. Hold Spit to fire; drag to aim."
+            : `Left thumb moves. Drag ${
+                SPECIES[getPlayer(run).species].action
+              } to aim; release to use it.`
           : `WASD moves · mouse aims · click / Space: ${
               SPECIES[getPlayer(run).species].action
             }`
@@ -780,7 +786,7 @@ function renderSettings() {
     }></label>
     <p class="small-copy">${
       touchControls
-        ? "Drag the left pad to move. Drag your attack to aim, then release. A shorter drag makes a shorter Pounce. Walk onto a fresh body to switch and recover 1 life."
+        ? "Drag the left pad to move. Hold Spit to keep firing; drag to aim. For Ram or Pounce, drag to aim and release to attack. A shorter drag makes a shorter Pounce. Walk onto a fresh body to switch and recover 1 life."
         : "WASD / arrows: move. Mouse: aim. Left-click / Space: attack. Hold to repeat Spit; press again for each Ram or Pounce. Walk onto a fresh body to switch and recover 1 life. Escape: pause."
     }</p>
     <p class="fine-print">Enemies die in one hit. Kills leave bodies you can choose to use once. Clear the chamber, then leave through the opening above.</p>

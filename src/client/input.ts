@@ -18,7 +18,7 @@ type Drag = {
 export class GameInput {
   private keys = new Set<string>();
   private moveDrag: Drag | null = null;
-  private actionDrag: Drag | null = null;
+  private actionDrag: (Drag & { fired: boolean }) | null = null;
   private aim: Vec2 = { x: 0, y: -1 };
   private targetDistance = LEAP_DISTANCE;
   private mouse: Vec2 | null = null;
@@ -236,7 +236,7 @@ export class GameInput {
         if (kind === "action") {
           this.syncHost();
           this.specialBlocked = false;
-          this.actionDrag = drag;
+          this.actionDrag = { ...drag, fired: false };
           this.actionAiming = true;
           this.mouse = null;
           this.aimAtPointerOrEnemy();
@@ -282,7 +282,7 @@ export class GameInput {
         element.style.setProperty("--stick-y", "0px");
       }
       if (kind === "action") {
-        if (!cancelled && !this.specialBlocked) {
+        if (!cancelled && !this.specialBlocked && !this.actionDrag?.fired) {
           const aimed = Math.hypot(drag.x - drag.startX, drag.y - drag.startY) > 8;
           this.queueAbility("pad", aimed ? this.aim : null);
         }
@@ -478,7 +478,7 @@ export class GameInput {
     const abilityPressed = hopCommitId === null && !this.specialBlocked &&
       !player.action && player.stunMs <= TICK_MS && player.specialCooldownMs <= TICK_MS &&
       (now <= this.abilityQueuedUntil ||
-        (player.species === "spitter" && (this.attack || this.keys.has("Space"))));
+        (player.species === "spitter" && (this.attack || this.keys.has("Space") || this.actionDrag !== null)));
     const result = {
       ...EMPTY_INPUT,
       moveX: movement.x,
@@ -493,6 +493,8 @@ export class GameInput {
       hopCommitId,
     };
     if (abilityPressed) {
+      if (player.species === "spitter" && this.actionDrag)
+        this.actionDrag.fired = true;
       this.cooldownFeedbackUntil = 0;
       this.abilityQueuedUntil = 0;
       this.queuedAbilitySource = null;
