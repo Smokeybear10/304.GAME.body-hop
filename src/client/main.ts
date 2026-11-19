@@ -469,7 +469,7 @@ function drawPortrait(species: Species, showParasite = false) {
       ],
       4
     );
-    paintCreature(ctx, "beetle", 133, 75, -0.35, {
+    paintCreature(ctx, species, 133, 75, -0.35, {
       possessed: true,
       scale: 1.42,
     });
