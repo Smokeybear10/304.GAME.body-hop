@@ -81,6 +81,17 @@ type Transfer = {
   departureHeight: number;
   departureAngle: number;
 };
+type DeathPose = {
+  image: Phaser.GameObjects.Image;
+  texture: string;
+  frame: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  angle: number;
+  at: number;
+};
 type SceneHooks = {
   getRun: () => Run;
   getInput: () => GameInput | null;
@@ -113,6 +124,7 @@ export class BodyHopScene extends Phaser.Scene {
   private contacts: Contact[] = [];
   private aftermath: Aftermath[] = [];
   private corpseBirths = new Map<number, { angle: number; at: number }>();
+  private deathPoses = new Map<number, DeathPose>();
   private arrivals = new Map<number, number>();
   private transfers: Transfer[] = [];
   private flashes = new Map<number, number>();
@@ -363,6 +375,8 @@ export class BodyHopScene extends Phaser.Scene {
     this.contacts = [];
     this.aftermath = [];
     this.corpseBirths.clear();
+    this.deathPoses.forEach((pose) => pose.image.destroy());
+    this.deathPoses.clear();
     this.arrivals.clear();
     this.transfers.forEach((transfer) => transfer.departure?.destroy());
     this.transfers = [];
@@ -381,7 +395,12 @@ export class BodyHopScene extends Phaser.Scene {
     for (const event of events)
       if (event.type === "possess")
         departed.set(event.fromId, { x: event.fromX, y: event.fromY });
-    let fallen: { x: number; y: number; angle: number } | null = null;
+    let fallen: {
+      x: number;
+      y: number;
+      angle: number;
+      pose: Omit<DeathPose, "image"> | null;
+    } | null = null;
     for (const event of events) {
       if (event.type === "spawn") {
         for (const id of event.ids) this.arrivals.set(id, this.elapsed);
@@ -503,11 +522,28 @@ export class BodyHopScene extends Phaser.Scene {
           this.cameras.main.shake(80, event.coreDamage > 0 ? 0.003 : 0.0015);
       }
       if (event.type === "death") {
+        const image = this.actorImages.get(event.id);
+        const reaction = this.hitReactions.get(event.id);
+        const texture = image?.texture.key.endsWith("-back") ? "creatures-back" : "creatures";
+        const frame = image ? String(image.frame.name) : "";
+        const pose = !event.player && image && !this.hooks.reducedMotion()
+          ? {
+              texture,
+              frame,
+              x: image.x,
+              y: image.y,
+              width: image.displayWidth,
+              height: image.displayHeight,
+              angle: reaction?.angle ?? 0,
+              at: this.elapsed,
+            }
+          : null;
         this.hitReactions.delete(event.id);
         fallen = {
           x: event.x,
           y: event.y,
           angle: this.gait.get(event.id)?.angle ?? 0,
+          pose,
         };
         this.leaveMark(
           event.x,
@@ -519,13 +555,24 @@ export class BodyHopScene extends Phaser.Scene {
         this.burst(event.x, event.y, 9, 0x8e6050, 130);
       }
       if (event.type === "corpse") {
-        const angle =
-          fallen && Math.hypot(event.x - fallen.x, event.y - fallen.y) < 2
-            ? fallen.angle
-            : 0;
+        const matching = fallen && Math.hypot(event.x - fallen.x, event.y - fallen.y) < 2
+          ? fallen : null;
+        const angle = matching?.angle ?? 0;
+        if (matching?.pose) {
+          const pose = matching.pose;
+          this.deathPoses.set(event.id, {
+            ...pose,
+            image: this.add.image(pose.x, pose.y, pose.texture, pose.frame)
+              .setDisplaySize(pose.width, pose.height)
+              .setDepth(10 + event.y),
+          });
+        }
         this.corpseBirths.set(event.id, { angle, at: this.elapsed });
+        fallen = null;
       }
       if (event.type === "possess") {
+        this.deathPoses.get(event.corpseId)?.image.destroy();
+        this.deathPoses.delete(event.corpseId);
         if (event.healed > 0) {
           this.rings.push({ x: event.x, y: event.y, radius: 42,
             life: 420, max: 420, color: 0xf0788e });
@@ -723,6 +770,40 @@ export class BodyHopScene extends Phaser.Scene {
       }
     }
   }
+  private drawDeathPoses(run: Run) {
+    for (const [id, pose] of this.deathPoses) {
+      const age = this.elapsed - pose.at;
+      const corpse = run.corpses.find((body) => body.id === id);
+      if (age >= 120 || !corpse || corpse.spent || this.hooks.reducedMotion()) {
+        pose.image.destroy();
+        this.deathPoses.delete(id);
+        continue;
+      }
+      const progress = age / 120;
+      const settling = Phaser.Math.Clamp((age - 36) / 84, 0, 1);
+      const recoil = Math.sin(progress * Math.PI) * 5;
+      pose.image
+        .setPosition(
+          pose.x + (corpse.x - pose.x) * settling + Math.cos(pose.angle) * recoil,
+          pose.y + (corpse.y - pose.y) * settling + Math.sin(pose.angle) * recoil
+        )
+        .setDisplaySize(
+          pose.width * (1 + Math.sin(progress * Math.PI) * 0.12),
+          pose.height * (1 - progress * 0.24)
+        )
+        .setAlpha(1 - settling);
+      if (age < 36) {
+        if (this.canvasRendering)
+          pose.image.setTexture(
+            pose.texture.endsWith("-back") ? "creature-flash-back" : "creature-flash",
+            pose.frame
+          );
+        else pose.image.setTint(0xfff0ce).setTintMode(Phaser.TintModes.FILL);
+      } else {
+        pose.image.setTexture(pose.texture, pose.frame).clearTint();
+      }
+    }
+  }
   private draw(run: Run, dt: number) {
     const ground = this.ground,
       marks = this.marks,
@@ -733,6 +814,7 @@ export class BodyHopScene extends Phaser.Scene {
     marks.clear();
     front.clear();
     this.grafts.clear();
+    this.drawDeathPoses(run);
     this.drawAftermath();
     this.keeperArrivalMs = Math.max(0, this.keeperArrivalMs - dt);
     const keeper = actors.find((actor) => actor.elite && actor.hp > 0);
@@ -885,6 +967,14 @@ export class BodyHopScene extends Phaser.Scene {
         }
       }
       const birth = this.corpseBirths.get(corpse.id);
+      const deathPose = this.deathPoses.get(corpse.id);
+      const corpsePresence = deathPose
+        ? Phaser.Math.Clamp((this.elapsed - deathPose.at - 36) / 84, 0, 1)
+        : 1;
+      if (birth && this.hooks.reducedMotion() && this.elapsed - birth.at < 120) {
+        marks.lineStyle(2, PAPER, 0.55)
+          .strokeEllipse(corpse.x, corpse.y, corpse.radius * 2, corpse.radius * 1.1);
+      }
       const settling =
         birth && !this.hooks.reducedMotion()
           ? Math.max(0, 1 - (this.elapsed - birth.at) / 240)
@@ -909,7 +999,7 @@ export class BodyHopScene extends Phaser.Scene {
                     1 - (this.elapsed - (birth?.at ?? -Infinity)) / 1400
                   )) *
                 (leaving ? 1 - leaving.life / leaving.max : 1)
-            : 0.82
+            : 0.82 * corpsePresence
         );
     }
     this.corpseImages.forEach((image, id) => {
