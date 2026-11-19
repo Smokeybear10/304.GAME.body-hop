@@ -60,7 +60,7 @@ const clock = (ms: number) =>
   `${Math.floor(ms / 60000)}:${Math.floor((ms / 1000) % 60)
     .toString()
     .padStart(2, "0")}`;
-const touchControls = matchMedia("(pointer: coarse)").matches;
+const touchControls = matchMedia("(any-pointer: coarse)").matches;
 let store: ProgressStore;
 let run: Run;
 let input: GameInput | null = null;
