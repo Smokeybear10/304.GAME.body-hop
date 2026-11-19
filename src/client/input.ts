@@ -30,6 +30,7 @@ export class GameInput {
   private queuedAimDistance: number | null = null;
   private specialBlocked = false;
   private hostId: number;
+  private hostSpecies: Actor["species"];
   private runId: string;
   private attack = false;
   private mouseButtons = 0;
@@ -44,6 +45,7 @@ export class GameInput {
     private onPause: () => void
   ) {
     this.hostId = getPlayer(this.getRun()).id;
+    this.hostSpecies = getPlayer(this.getRun()).species;
     this.runId = this.getRun().runId;
     this.blockNearbyBodies();
     const options = { signal: this.controller.signal };
@@ -402,7 +404,10 @@ export class GameInput {
   private syncHost() {
     const run = this.getRun(), player = getPlayer(run);
     if (player.id !== this.hostId || run.runId !== this.runId) {
+      const continuingSpit = run.runId === this.runId &&
+        this.hostSpecies === "spitter" && player.species === "spitter";
       this.hostId = player.id;
+      this.hostSpecies = player.species;
       this.runId = run.runId;
       this.blockNearbyBodies();
       this.abilityQueuedUntil = 0;
@@ -410,7 +415,8 @@ export class GameInput {
       this.queuedAim = null;
       this.queuedAimDistance = null;
       this.targetSample = null;
-      this.specialBlocked = this.attack || this.keys.has("Space") || this.actionDrag !== null;
+      if (!continuingSpit)
+        this.specialBlocked = this.attack || this.keys.has("Space") || this.actionDrag !== null;
     }
     for (const id of this.blockedBodies) {
       const corpse = run.corpses.find(body => body.id === id);
