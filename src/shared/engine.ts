@@ -825,12 +825,17 @@ function spawnNextGroup(run: Run, events: GameEvent[]): void {
   const ids: number[] = [];
   for (const [index, spawn] of encounter.groups[run.encounterGroup]!.entries()) {
     const enemy = makeActor(run, spawn.species, 'enemy', spawn.x, spawn.y, spawn.elite);
-    if (distance(enemy, player) < 180 || run.actors.some(actor => actor.hp > 0 && distance(enemy, actor) < enemy.radius + actor.radius + 10)) {
+    const onLethalFloor = (point: Vec2) => enemy.elite && run.areas.some(area => area.remainingMs > 0 && (area.kind === 'silk'
+      ? segmentDistance(point, area, { x: area.toX, y: area.toY }) <= area.radius + enemy.radius
+      : distance(point, area) <= area.radius + enemy.radius * 0.4));
+    if (distance(enemy, player) < 180 || run.actors.some(actor => actor.hp > 0 && distance(enemy, actor) < enemy.radius + actor.radius + 10) || onLethalFloor(enemy)) {
       const candidates = [{ x: spawn.x - 180, y: spawn.y }, { x: spawn.x + 180, y: spawn.y }, { x: spawn.x, y: spawn.y - 180 }, { x: spawn.x, y: spawn.y + 180 }, ...[100, 230, 360, 490, 620].flatMap(x => [140, 300, 480, 660, 820].map(y => ({ x, y })))]
         .map(point => fitPosition(run, point.x, point.y, enemy.radius))
         .filter(point => distance(point, player) >= 180 && run.actors.every(actor => actor.hp <= 0 || distance(point, actor) > enemy.radius + actor.radius + 10))
         .sort((a, b) => distance(a, spawn) - distance(b, spawn));
-      if (candidates[0]) Object.assign(enemy, candidates[0]);
+      // A fully covered room still spawns on time, with normal one-hit vulnerability.
+      const arrival = candidates.find(point => !onLethalFloor(point)) ?? candidates[0];
+      if (arrival) Object.assign(enemy, arrival);
     }
     enemy.basicCooldownMs = 1100 + index * 150;
     enemy.specialCooldownMs = enemy.elite ? 0 : 1500 + index * 200;
