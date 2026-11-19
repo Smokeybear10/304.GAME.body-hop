@@ -435,11 +435,17 @@ export class GameInput {
     return result;
   }
   get switchTarget(): Corpse | null {
+    return this.nearestBody(BODY_SWITCH_RANGE);
+  }
+  get approachingBody(): Corpse | null {
+    return this.nearestBody(110);
+  }
+  private nearestBody(range: number): Corpse | null {
     const run = this.getRun(), player = getPlayer(run);
     if (!["playing", "cleared"].includes(run.phase) || run.core <= 0 || player.hp <= 0) return null;
     return run.corpses.filter(corpse => !corpse.spent && !corpse.consumed &&
       !this.blockedBodies.has(corpse.id) &&
-      Math.hypot(corpse.x - player.x, corpse.y - player.y) <= BODY_SWITCH_RANGE &&
+      Math.hypot(corpse.x - player.x, corpse.y - player.y) <= range &&
       hasLineOfSight(run, player, corpse))
       .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) -
         Math.hypot(b.x - player.x, b.y - player.y) || a.id - b.id)[0] ?? null;

@@ -923,7 +923,7 @@ export class BodyHopScene extends Phaser.Scene {
     }
     const input = this.hooks.getInput(),
       player = actors.find((actor) => actor.id === run.playerId)!;
-    const nearbyBody = input ? input.switchTarget : getNearbyBody(run);
+    const nearbyBody = input ? input.approachingBody : getNearbyBody(run);
     const switchReady = nearbyBody && !player.action && canSwitchBody(run, nearbyBody.id);
     const aliveCorpses = new Set<number>();
     for (const corpse of run.corpses) {
@@ -943,7 +943,7 @@ export class BodyHopScene extends Phaser.Scene {
             corpse.radius * 2.2, corpse.radius * 1.1);
       }
       if (nearbyBody?.id === corpse.id) {
-        const pulse = this.hooks.reducedMotion() ? 0 : Math.sin(this.elapsed * 0.006) * 2;
+        const pulse = switchReady && !this.hooks.reducedMotion() ? Math.sin(this.elapsed * 0.006) * 2 : 0;
         const reach = corpse.radius + 12 + pulse;
         const color = switchReady ? 0xc5e5c8 : PAPER;
         marks.lineStyle(4, BLACK, 0.8);
@@ -956,7 +956,7 @@ export class BodyHopScene extends Phaser.Scene {
           }
         }
         const gap = Math.hypot(corpse.x - player.x, corpse.y - player.y);
-        if (gap > 42) {
+        if (gap > 42 && canSwitchBody(run, corpse.id)) {
           const steps = Math.ceil(gap / 16);
           marks.fillStyle(color, switchReady ? 0.6 : 0.25);
           for (let index = 1; index < steps; index++) {
