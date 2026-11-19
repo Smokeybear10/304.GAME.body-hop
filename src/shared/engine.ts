@@ -188,6 +188,7 @@ function moveActor(run: Run, actor: Actor, dx: number, dy: number): void {
 }
 
 function displace(run: Run, actor: Actor, dx: number, dy: number): void {
+  actor.navigation = null;
   const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 12));
   for (let index = 0; index < steps; index += 1) moveActor(run, actor, dx / steps, dy / steps);
 }
@@ -202,7 +203,7 @@ function makeActor(run: Run, species: Species, faction: Actor['faction'], x: num
     facingX: 0, facingY: faction === 'enemy' ? 1 : -1,
     basicCooldownMs: faction === 'enemy' ? 700 : 0, specialCooldownMs: faction === 'enemy' ? 1100 + run.nextEntityId % 4 * 180 : 0,
     invulnerableMs: 0, stunMs: 0, poisonMs: 0, poisonTickMs: 0, poisonOwnerId: 0,
-    action: null, lastSpecial: null, elite, volleyCount: 0,
+    action: null, lastSpecial: null, elite, volleyCount: 0, navigation: null,
   };
 }
 
@@ -461,6 +462,7 @@ function targets(run: Run, actor: Actor): Actor[] {
 function basicAttack(run: Run, actor: Actor, dx: number, dy: number, events: GameEvent[], resolved = false, pattern?: BulletPattern): void {
   if (actor.faction !== 'enemy') return;
   if (!resolved) {
+    actor.navigation = null;
     actor.action = { kind: actor.species === 'spitter' ? 'spit' : 'swipe', basic: true, stage: 'windup', timeMs: 0, durationMs: actor.species === 'spitter' ? 420 : 300,
       dirX: dx, dirY: dy, fromX: actor.x, fromY: actor.y, targetX: actor.x + dx * 100, targetY: actor.y + dy * 100, hitIds: [], generation: 0, ...(actor.species === 'spitter' ? { pattern: enemyPattern(run, actor, dx, dy, true) } : {}) };
     return;
@@ -500,6 +502,7 @@ export function previewSpecial(run: Run, actor: Actor, dirX: number, dirY: numbe
 }
 
 function beginSpecial(run: Run, actor: Actor, dx: number, dy: number, generation: 0 | 1, events: GameEvent[], aimDistance?: number): void {
+  actor.navigation = null;
   const aim = specialDirection(actor, dx, dy);
   actor.facingX = aim.x;
   actor.facingY = aim.y;
@@ -647,21 +650,67 @@ function switchBody(run: Run, corpseId: number, events: GameEvent[]): boolean {
   return true;
 }
 
-function moveEnemy(run: Run, actor: Actor, dx: number, dy: number, dt: number): void {
-  let desired = direction(dx, dy);
-  const look = { x: actor.x + desired.x * 70, y: actor.y + desired.y * 70 };
-  if (run.obstacles.some(rect => crossesRect(actor, look, rect, actor.radius + 3))) {
-    const alternatives = [
-      { x: -desired.y, y: desired.x }, { x: desired.y, y: -desired.x },
-      { x: desired.x * 0.5 - desired.y * 0.86, y: desired.y * 0.5 + desired.x * 0.86 },
-      { x: desired.x * 0.5 + desired.y * 0.86, y: desired.y * 0.5 - desired.x * 0.86 },
-    ];
-    const player = getPlayer(run);
-    const open = alternatives.filter(vector => !run.obstacles.some(rect => crossesRect(actor, { x: actor.x + vector.x * 70, y: actor.y + vector.y * 70 }, rect, actor.radius + 3)));
-    open.sort((a, b) => distance({ x: actor.x + a.x * 100, y: actor.y + a.y * 100 }, player) - distance({ x: actor.x + b.x * 100, y: actor.y + b.y * 100 }, player));
-    desired = open[0] ?? { x: 0, y: 0 };
+function canWalkTo(run: Run, actor: Actor, from: Vec2, to: Vec2): boolean {
+  const endpoint = previewCharge(run, { ...from, radius: actor.radius }, to.x - from.x, to.y - from.y, distance(from, to));
+  return distance(endpoint, to) < 0.001;
+}
+
+function routeWaypoint(run: Run, actor: Actor, goal: Vec2, retreat: boolean): Vec2 | null {
+  const clearance = actor.radius + 2;
+  const corners = run.obstacles.flatMap(rect => [
+    { x: rect.x - clearance, y: rect.y - clearance }, { x: rect.x + rect.width + clearance, y: rect.y - clearance },
+    { x: rect.x - clearance, y: rect.y + rect.height + clearance }, { x: rect.x + rect.width + clearance, y: rect.y + rect.height + clearance },
+  ]).filter(point => distance(point, fitPosition(run, point.x, point.y, actor.radius)) < 0.001);
+  const nodes = [actor, goal, ...corners];
+  const costs = nodes.map(() => Infinity), previous = nodes.map(() => -1), visited = new Set<number>();
+  const player = getPlayer(run);
+  costs[0] = 0;
+  for (let count = 0; count < nodes.length; count++) {
+    let nearest = -1;
+    for (let index = 0; index < nodes.length; index++) {
+      if (!visited.has(index) && (nearest < 0 || costs[index]! < costs[nearest]!)) nearest = index;
+    }
+    if (nearest < 0 || !Number.isFinite(costs[nearest]) || nearest === 1) break;
+    visited.add(nearest);
+    for (let index = 0; index < nodes.length; index++) {
+      if (visited.has(index)) continue;
+      const from = nodes[nearest]!, to = nodes[index]!;
+      if (retreat && nearest === 0 && (to.x - actor.x) * (actor.x - player.x) + (to.y - actor.y) * (actor.y - player.y) < 0) continue;
+      if (!canWalkTo(run, actor, from, to)) continue;
+      const cost = costs[nearest]! + distance(from, to);
+      if (cost >= costs[index]!) continue;
+      costs[index] = cost;
+      previous[index] = nearest;
+    }
   }
-  moveActor(run, actor, desired.x * SPECIES[actor.species].speed * 0.62 * dt / 1000, desired.y * SPECIES[actor.species].speed * 0.62 * dt / 1000);
+  if (previous[1] === -1) return null;
+  let next = 1;
+  while (previous[next]! > 0) next = previous[next]!;
+  const point = nodes[next]!;
+  return { x: point.x, y: point.y };
+}
+
+function moveEnemy(run: Run, actor: Actor, dx: number, dy: number, dt: number, retreat = false): void {
+  const desired = direction(dx, dy), player = getPlayer(run);
+  const goal = retreat ? fitPosition(run, actor.x + desired.x * 180, actor.y + desired.y * 180, actor.radius)
+    : fitPosition(run, player.x, player.y, actor.radius);
+  const travel = SPECIES[actor.species].speed * 0.62 * dt / 1000;
+  let target = goal;
+  if (canWalkTo(run, actor, actor, goal)) actor.navigation = null;
+  else {
+    const route = actor.navigation;
+    const retreatReversed = retreat && route && ((route.waypoint.x - actor.x) * (actor.x - player.x) + (route.waypoint.y - actor.y) * (actor.y - player.y) < 0);
+    if (!route || retreatReversed || route.retreat !== retreat || distance(route.goal, goal) > 80 || distance(actor, route.waypoint) <= Math.max(2, travel)
+      || !canWalkTo(run, actor, actor, route.waypoint)) {
+      const waypoint = routeWaypoint(run, actor, goal, retreat);
+      actor.navigation = waypoint ? { waypoint, goal, retreat } : null;
+    }
+    if (!actor.navigation) return;
+    target = actor.navigation.waypoint;
+  }
+  if (retreat && ((target.x - actor.x) * (actor.x - player.x) + (target.y - actor.y) * (actor.y - player.y) < 0)) { actor.navigation = null; return; }
+  const aim = direction(target.x - actor.x, target.y - actor.y), amount = Math.min(travel, distance(actor, target));
+  moveActor(run, actor, aim.x * amount, aim.y * amount);
 }
 
 function updateEnemy(run: Run, actor: Actor, dt: number, events: GameEvent[]): void {
@@ -682,7 +731,7 @@ function updateEnemy(run: Run, actor: Actor, dt: number, events: GameEvent[]): v
   }
   if (actor.species === 'spitter') {
     if (length > 300 || !hasLineOfSight(run, actor, player)) moveEnemy(run, actor, toward.x, toward.y, dt);
-    else if (length < 180) moveEnemy(run, actor, -toward.x, -toward.y, dt);
+    else if (length < 180) moveEnemy(run, actor, -toward.x, -toward.y, dt, true);
   } else if (length > actor.radius + player.radius + 12) moveEnemy(run, actor, toward.x, toward.y, dt);
   const range = actor.species === 'spitter' ? 440 : actor.species === 'beetle' ? 108 : 92;
   if (actor.basicCooldownMs <= 0 && length < range && hasLineOfSight(run, actor, player)) basicAttack(run, actor, toward.x, toward.y, events);

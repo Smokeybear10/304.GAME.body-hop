@@ -115,6 +115,7 @@ export type Actor = {
   facingX: number; facingY: number; basicCooldownMs: number; specialCooldownMs: number;
   invulnerableMs: number; stunMs: number; poisonMs: number; poisonTickMs: number; poisonOwnerId: number;
   action: Action | null; lastSpecial: SpecialRecord | null; elite: boolean; volleyCount: number;
+  navigation: { waypoint: Vec2; goal: Vec2; retreat: boolean } | null;
 };
 export type Corpse = z.infer<typeof CorpseSchema>;
 export type Projectile = {
