@@ -54,7 +54,7 @@ const ENCOUNTERS: Omit<Encounter, 'groups'>[] = [
     { species: 'spitter', x: 360, y: 620 }, { species: 'hopper', x: 100, y: 780 }, { species: 'hopper', x: 620, y: 780 }, { species: 'beetle', x: 360, y: 310 },
   ] },
   { name: 'Bone garden', description: 'Make the old body part of the next fight.', start: { x: 360, y: 800 }, obstacles: [{ x: 180, y: 320, width: 90, height: 220 }, { x: 450, y: 320, width: 90, height: 220 }], enemies: [
-    { species: 'beetle', x: 360, y: 230 }, { species: 'spitter', x: 100, y: 160 }, { species: 'spitter', x: 620, y: 160 }, { species: 'hopper', x: 130, y: 630 }, { species: 'hopper', x: 590, y: 630 }, { species: 'beetle', x: 350, y: 560 }, { species: 'spitter', x: 360, y: 100 }, { species: 'spitter', x: 100, y: 410 }, { species: 'spitter', x: 620, y: 410 },
+    { species: 'beetle', x: 360, y: 230 }, { species: 'spitter', x: 100, y: 160 }, { species: 'spitter', x: 620, y: 160 }, { species: 'beetle', x: 350, y: 560 }, { species: 'hopper', x: 590, y: 630 }, { species: 'hopper', x: 130, y: 630 }, { species: 'spitter', x: 360, y: 100 }, { species: 'spitter', x: 100, y: 410 }, { species: 'spitter', x: 620, y: 410 },
     { species: 'spitter', x: 100, y: 700 }, { species: 'spitter', x: 620, y: 700 }, { species: 'hopper', x: 360, y: 650 }, { species: 'hopper', x: 360, y: 150 }, { species: 'beetle', x: 360, y: 400 },
   ] },
   { name: 'Molt furnace', description: 'Kill to make a path. Nearby bodies restore one life.', start: { x: 360, y: 800 }, obstacles: [{ x: 285, y: 330, width: 150, height: 130 }], enemies: [
