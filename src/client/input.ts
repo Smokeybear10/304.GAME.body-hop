@@ -63,6 +63,13 @@ export class GameInput {
     window.addEventListener(
       "keydown",
       (event) => {
+        if (event.code === "Escape") {
+          if (event.repeat) return;
+          event.preventDefault();
+          this.clear();
+          this.onPause();
+          return;
+        }
         const target = event.target;
         if (
           target instanceof HTMLElement &&
@@ -74,11 +81,6 @@ export class GameInput {
           ["Space", "Enter"].includes(event.code)
         )
           return;
-        if (event.code === "Escape") {
-          this.clear();
-          this.onPause();
-          return;
-        }
         if (!["playing", "cleared"].includes(this.getRun().phase)) return;
         if (
           [

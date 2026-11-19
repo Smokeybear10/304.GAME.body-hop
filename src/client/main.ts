@@ -70,6 +70,7 @@ let graphicsLost = false;
 let accumulator = 0;
 let lastPhase = "";
 let settingsOpen = false;
+let pauseReason = "";
 let replacement: MutationId | null = null;
 let hintTimer: ReturnType<typeof setTimeout> | null = null;
 let reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -236,6 +237,7 @@ function begin() {
   if (run.phase === "ready") dispatch(startEncounter(run));
   else if (run.phase === "paused") resume(run);
   settingsOpen = false;
+  pauseReason = "";
   updateUi(true);
   renderer?.game.canvas.focus({ preventScroll: true });
 }
@@ -243,19 +245,20 @@ function begin() {
 function pauseGame(message?: string) {
   if (!run || run.phase === "dead" || run.phase === "escaped") return;
   if (run.phase !== "paused") {
+    pauseReason = message ?? "";
     pause(run);
     metrics.pauses++;
-  }
+  } else if (message) pauseReason = message;
   input?.clear();
   accumulator = 0;
   updateUi(true);
-  if (message) hint(message);
 }
 
 function newAttempt() {
   run = createRun(store.bootstrap.challenge, "shared", crypto.randomUUID());
   replacement = null;
   settingsOpen = false;
+  pauseReason = "";
   restored = false;
   savedBoundary = "";
   lastPhase = "";
@@ -695,6 +698,7 @@ function renderReward() {
 
 function renderPause() {
   const conflict = store.status === "conflict";
+  const reason = !graphicsLost && !conflict ? pauseReason : "";
   const checkpointNote =
     run.resumePhase === "cleared"
       ? "Your current body and cleared chamber are saved here."
@@ -708,6 +712,7 @@ function renderPause() {
       ? "A newer run<br>is saved."
       : "Take a breath."
   }</h2>
+    ${reason ? '<p id="pause-reason" role="status"></p>' : ""}
     <p>${
       graphicsLost
         ? "The fight is paused while the picture recovers. You can also reload from your last checkpoint."
@@ -741,6 +746,7 @@ function renderPause() {
         : ""
     }
     <p class="fine-print">${checkpointNote}</p>`);
+  if (reason) element("pause-reason").textContent = reason;
   bind("resume-button", () => {
     if (conflict) location.reload();
     else begin();
@@ -1037,8 +1043,9 @@ function connectGame() {
       });
       canvas.addEventListener("webglcontextrestored", () => {
         graphicsLost = false;
+        if (run.phase === "paused")
+          pauseReason = "Graphics restored. Resume when you are ready.";
         updateUi(true);
-        hint("Graphics restored. Resume when you are ready.");
       });
       input = new GameInput(
         canvas,
