@@ -21,7 +21,7 @@ export class GameInput {
   private actionDrag: (Drag & { fired: boolean }) | null = null;
   private aim: Vec2 = { x: 0, y: -1 };
   private targetDistance = LEAP_DISTANCE;
-  private mouse: Vec2 | null = null;
+  private mouseClient: Vec2 | null = null;
   private targetSample: { id: number; x: number; y: number; timeMs: number; vx: number; vy: number } | null = null;
   private abilityQueuedUntil = 0;
   private cooldownFeedbackUntil = 0;
@@ -123,7 +123,7 @@ export class GameInput {
       "pointermove",
       (event) => {
         if (event.pointerType !== "mouse") return;
-        this.mouse = this.toWorld(event.clientX, event.clientY);
+        this.mouseClient = { x: event.clientX, y: event.clientY };
         this.aimAtPointerOrEnemy();
         this.updateMouseButtons(event);
       },
@@ -137,7 +137,7 @@ export class GameInput {
           this.mousePointerId !== event.pointerId
         )
           return;
-        this.mouse = this.toWorld(event.clientX, event.clientY);
+        this.mouseClient = { x: event.clientX, y: event.clientY };
         this.aimAtPointerOrEnemy();
         this.updateMouseButtons(event);
       },
@@ -146,7 +146,7 @@ export class GameInput {
     canvas.addEventListener(
       "pointerleave",
       () => {
-        if (!this.attack) this.mouse = null;
+        if (!this.attack) this.mouseClient = null;
       },
       options
     );
@@ -158,7 +158,7 @@ export class GameInput {
           !["playing", "cleared"].includes(this.getRun().phase)
         )
           return;
-        this.mouse = this.toWorld(event.clientX, event.clientY);
+        this.mouseClient = { x: event.clientX, y: event.clientY };
         this.aimAtPointerOrEnemy();
         this.mousePointerId = event.pointerId;
         canvas.setPointerCapture(event.pointerId);
@@ -170,7 +170,7 @@ export class GameInput {
       "pointerup",
       (event) => {
         if (event.pointerType !== "mouse" || event.pointerId !== this.mousePointerId) return;
-        this.mouse = this.toWorld(event.clientX, event.clientY);
+        this.mouseClient = { x: event.clientX, y: event.clientY };
         this.updateMouseButtons(event);
       },
       options
@@ -240,7 +240,7 @@ export class GameInput {
           this.specialBlocked = false;
           this.actionDrag = { ...drag, fired: false };
           this.actionAiming = true;
-          this.mouse = null;
+          this.mouseClient = null;
           this.aimAtPointerOrEnemy();
         }
         element.classList.add("held");
@@ -359,7 +359,7 @@ export class GameInput {
       return;
     const run = this.getRun(),
       player = getPlayer(run);
-    let target = this.mouse;
+    let target = this.mouseClient ? this.toWorld(this.mouseClient.x, this.mouseClient.y) : null;
     if (target) this.targetSample = null;
     if (!target) {
       const enemies = run.actors
@@ -394,7 +394,7 @@ export class GameInput {
       player.stunMs <= 0 && player.specialCooldownMs > TICK_MS
       ? performance.now() + 300 : 0;
     if (!aim) this.aimAtPointerOrEnemy();
-    const committedAim = aim ?? (this.mouse ? null : this.aim);
+    const committedAim = aim ?? (this.mouseClient ? null : this.aim);
     this.specialBlocked = false;
     this.abilityQueuedUntil = performance.now() + 160;
     this.queuedAbilitySource = source;
@@ -540,7 +540,7 @@ export class GameInput {
     return this.targetDistance;
   }
   get hasExplicitAim() {
-    return this.actionAiming || this.mouse !== null;
+    return this.actionAiming || this.mouseClient !== null;
   }
   clear() {
     this.syncHost();
@@ -557,7 +557,7 @@ export class GameInput {
     this.attack = false;
     this.mouseButtons = 0;
     this.mousePointerId = null;
-    this.mouse = null;
+    this.mouseClient = null;
     this.targetSample = null;
     this.actionAiming = false;
     document
