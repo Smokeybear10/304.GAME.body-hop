@@ -1328,12 +1328,11 @@ export function createCorpseTexture(
     );
     path(
       ctx,
-      "M-20 -2 -16 -10 -9 -6 -3 -8 -5 1 -9 4 -10 9 -17 5 -16 1 Z",
+      "M-25 -3 Q-25 -12 -15 -14 L-7 -10 1 -12 -2 -4 3 2 -4 5 -7 12 -17 10 -24 4 Z",
       ink.edge
     );
-    line(ctx, [-19, -2, -15, -7, -9, -3, -5, -5], INK.light, 2.5);
-    line(ctx, [-18, 3, -14, 7, -8, 3], ink.dark, 1.3);
-    path(ctx, "M-15-6Q-8-2-12 6L-16 2-13-1Z", "#d9c794", ink.edge, 0.8);
+    line(ctx, [-24, -4, -21, -10, -15, -12, -7, -8], "#d9c794", 3);
+    line(ctx, [-21, 5, -16, 8, -9, 7], ink.flesh, 1.8);
   }
   return canvas;
 }

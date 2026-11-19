@@ -592,6 +592,10 @@ export class BodyHopScene extends Phaser.Scene {
       if (event.type === "possess") {
         this.deathPoses.get(event.corpseId)?.image.destroy();
         this.deathPoses.delete(event.corpseId);
+        this.corpseBirths.set(event.abandonedCorpseId, {
+          angle: this.gait.get(event.fromId)?.angle ?? 0,
+          at: this.elapsed,
+        });
         if (event.healed > 0) {
           this.rings.push({ x: event.x, y: event.y, radius: 42,
             life: 420, max: 420, color: 0xf0788e });
@@ -1007,7 +1011,7 @@ export class BodyHopScene extends Phaser.Scene {
       const corpsePresence = deathPose
         ? Phaser.Math.Clamp((this.elapsed - deathPose.at - 36) / 84, 0, 1)
         : 1;
-      if (birth && this.hooks.reducedMotion() && this.elapsed - birth.at < 120) {
+      if (!corpse.spent && birth && this.hooks.reducedMotion() && this.elapsed - birth.at < 120) {
         marks.lineStyle(2, PAPER, 0.55)
           .strokeEllipse(corpse.x, corpse.y, corpse.radius * 2, corpse.radius * 1.1);
       }
@@ -1028,8 +1032,8 @@ export class BodyHopScene extends Phaser.Scene {
         .setRotation(birth?.angle ?? corpse.id * 0.7)
         .setAlpha(
           corpse.spent
-            ? (0.36 +
-                0.22 *
+            ? (0.26 +
+                0.32 *
                   Math.max(
                     0,
                     1 - (this.elapsed - (birth?.at ?? -Infinity)) / 1400
