@@ -369,6 +369,20 @@ export class BodyHopScene extends Phaser.Scene {
       this.simulationPoses.clear();
       this.phaseStartedAt = this.elapsed;
     }
+    this.syncEncounter(run);
+    this.draw(run, delta);
+    const settled =
+      run.phase === "ready" ||
+      run.phase === "reward" ||
+      run.phase === "paused" ||
+      ((run.phase === "dead" || run.phase === "escaped") &&
+        this.elapsed - this.phaseStartedAt > 700);
+    if (settled) {
+      this.lastFrameTime = null;
+      this.game.loop.sleep();
+    }
+  }
+  private syncEncounter(run: Run) {
     if (
       this.previousEncounter !== run.encounterIndex ||
       this.previousRun !== run.runId
@@ -386,17 +400,6 @@ export class BodyHopScene extends Phaser.Scene {
       floorTexture.refresh();
       this.previousEncounter = run.encounterIndex;
       this.previousRun = run.runId;
-    }
-    this.draw(run, delta);
-    const settled =
-      run.phase === "ready" ||
-      run.phase === "reward" ||
-      run.phase === "paused" ||
-      ((run.phase === "dead" || run.phase === "escaped") &&
-        this.elapsed - this.phaseStartedAt > 700);
-    if (settled) {
-      this.lastFrameTime = null;
-      this.game.loop.sleep();
     }
   }
   private resetVisuals() {
@@ -428,6 +431,7 @@ export class BodyHopScene extends Phaser.Scene {
     this.exitOpeningMs = 0;
   }
   receive(events: GameEvent[]) {
+    this.syncEncounter(this.hooks.getRun());
     const departed = new Map<number, Vec2>();
     for (const event of events)
       if (event.type === "possess")
