@@ -38,8 +38,8 @@ function crossesRect(start: Vec2, end: Vec2, rect: Rect, padding = 0): boolean {
   return true;
 }
 
-export function hasLineOfSight(run: Run, from: Vec2, to: Vec2): boolean {
-  return !run.obstacles.some(rect => crossesRect(from, to, rect));
+export function hasLineOfSight(run: Run, from: Vec2, to: Vec2, padding = 0): boolean {
+  return !run.obstacles.some(rect => crossesRect(from, to, rect, padding));
 }
 
 function rayRectDistance(from: Vec2, aim: Vec2, rect: Rect): number {
@@ -690,7 +690,7 @@ function routeWaypoint(run: Run, actor: Actor, goal: Vec2, retreat: boolean): Ve
   return { x: point.x, y: point.y };
 }
 
-function moveEnemy(run: Run, actor: Actor, dx: number, dy: number, dt: number, retreat = false): void {
+function moveEnemy(run: Run, actor: Actor, dx: number, dy: number, dt: number, retreat = false, minimumRange = 0): void {
   const desired = direction(dx, dy), player = getPlayer(run);
   const goal = retreat ? fitPosition(run, actor.x + desired.x * 180, actor.y + desired.y * 180, actor.radius)
     : fitPosition(run, player.x, player.y, actor.radius);
@@ -709,7 +709,12 @@ function moveEnemy(run: Run, actor: Actor, dx: number, dy: number, dt: number, r
     target = actor.navigation.waypoint;
   }
   if (retreat && ((target.x - actor.x) * (actor.x - player.x) + (target.y - actor.y) * (actor.y - player.y) < 0)) { actor.navigation = null; return; }
-  const aim = direction(target.x - actor.x, target.y - actor.y), amount = Math.min(travel, distance(actor, target));
+  let aim = direction(target.x - actor.x, target.y - actor.y);
+  if (minimumRange > 0 && distance(actor, player) < minimumRange + travel) {
+    const toward = direction(player.x - actor.x, player.y - actor.y), inward = aim.x * toward.x + aim.y * toward.y;
+    if (inward > 0) aim = direction(aim.x - toward.x * inward, aim.y - toward.y * inward);
+  }
+  const amount = Math.min(travel, distance(actor, target));
   moveActor(run, actor, aim.x * amount, aim.y * amount);
 }
 
@@ -730,8 +735,9 @@ function updateEnemy(run: Run, actor: Actor, dt: number, events: GameEvent[]): v
     return;
   }
   if (actor.species === 'spitter') {
-    if (length > 300 || !hasLineOfSight(run, actor, player)) moveEnemy(run, actor, toward.x, toward.y, dt);
-    else if (length < 180) moveEnemy(run, actor, -toward.x, -toward.y, dt, true);
+    if (length < 180 && hasLineOfSight(run, actor, player)) moveEnemy(run, actor, -toward.x, -toward.y, dt, true);
+    else if (length > 300 || !hasLineOfSight(run, actor, player)) moveEnemy(run, actor, toward.x, toward.y, dt);
+    else if (!hasLineOfSight(run, actor, player, actor.elite ? 6 : 8)) moveEnemy(run, actor, toward.x, toward.y, dt, false, 180);
   } else if (length > actor.radius + player.radius + 12) moveEnemy(run, actor, toward.x, toward.y, dt);
   const range = actor.species === 'spitter' ? 440 : actor.species === 'beetle' ? 108 : 92;
   if (actor.basicCooldownMs <= 0 && length < range && hasLineOfSight(run, actor, player)) basicAttack(run, actor, toward.x, toward.y, events);
