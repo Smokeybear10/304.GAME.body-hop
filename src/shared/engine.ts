@@ -769,7 +769,7 @@ function updateProjectiles(run: Run, dt: number, events: GameEvent[]): void {
     const hit = possible.filter(actor => !(actor.action?.kind === 'leap' && actor.action.stage === 'active') && segmentDistance(actor, start, shot) < (actor.faction === 'player' && shot.faction === 'enemy' ? PLAYER_BULLET_RADIUS : actor.radius) + shot.radius)
       .sort((a, b) => distance(start, a) - distance(start, b) || a.id - b.id)[0];
     if (!hit) continue;
-    damage(run, hit, shot.damage, shot.ownerId, shot.generation, shot.poison, 'A spit struck your exposed body.', events);
+    damage(run, hit, shot.damage, shot.ownerId, shot.generation, shot.poison, shot.kind === 'barb' ? 'A barb struck your exposed body.' : 'A spit struck your exposed body.', events);
     shot.lifeMs = 0;
   }
   run.projectiles = run.projectiles.filter(shot => shot.lifeMs > 0);
