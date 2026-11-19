@@ -1920,6 +1920,33 @@ body[data-recovered-result="true"] :is(#hud, #mutation-strip) {
     gap: 8px;
   }
 }
+body[data-loading="true"] #app {
+  width: min(100%, 760px);
+}
+body[data-loading="true"] :is(.header-actions, .hud, .mutation-strip, .control-deck, #world, #live-hint, #daily-foreshadow) {
+  display: none;
+}
+body[data-loading="true"] .game-shell {
+  display: block;
+  width: min(100%, 550px);
+  height: auto;
+  margin: auto 0;
+}
+body[data-loading="true"] .stage-wrap {
+  aspect-ratio: auto;
+}
+body[data-loading="true"] .overlay {
+  position: relative;
+  min-height: min(260px, calc(var(--viewport-height) - 100px));
+  max-height: calc(var(--viewport-height) - 100px);
+}
+body[data-loading="true"] :is(.screen, .loading) {
+  min-height: inherit;
+}
+body[data-loading="true"] .loading {
+  padding: 18px;
+}
+
 @media (pointer: fine) and (any-pointer: coarse) and (min-width: 560px) and (min-height: 651px) {
   .move-control {
     display: flex;

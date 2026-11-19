@@ -1063,6 +1063,7 @@ function connectGame() {
     reducedMotion: () => reducedMotion,
     ready: (canvas) => {
       rendererReady = true;
+      delete document.body.dataset.loading;
       canvas.tabIndex = 0;
       canvas.setAttribute("aria-label", "Combat arena");
       canvas.addEventListener("webglcontextlost", (event) => {
