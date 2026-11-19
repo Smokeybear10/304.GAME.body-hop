@@ -49,6 +49,7 @@ type Ring = {
   life: number;
   max: number;
   color: number;
+  groundContact?: boolean;
 };
 type Contact = {
   x: number;
@@ -610,14 +611,20 @@ export class BodyHopScene extends Phaser.Scene {
         });
       }
       if (event.type === "impact") {
+        const solidHit = event.faction === "player" && event.hitCount > 0;
+        const enemy = event.faction === "enemy";
+        const echo = event.faction === "echo";
+        const life = solidHit ? 300 : echo ? 130 : 160;
         this.rings.push({
           x: event.x,
           y: event.y,
-          radius: event.radius,
-          life: 300,
-          max: 300,
-          color: LIGHT,
+          radius: solidHit ? event.radius : Math.min(event.radius, echo ? 16 : 20),
+          life,
+          max: life,
+          color: solidHit ? LIGHT : enemy ? 0xb88169 : echo ? 0x85858a : 0xb6b19a,
+          groundContact: !solidHit,
         });
+        if (!solidHit) continue;
         const angle = Math.atan2(event.dirY ?? 0, event.dirX ?? 1);
         this.leaveMark(
           event.x,
@@ -1764,16 +1771,19 @@ export class BodyHopScene extends Phaser.Scene {
     this.rings = this.rings.filter((r) => r.life > 0);
     for (const ring of this.rings) {
       ring.life -= dt;
-      const progress = 1 - ring.life / ring.max;
+      const progress = 1 - Math.max(0, ring.life) / ring.max;
+      const spread = ring.groundContact
+        ? this.hooks.reducedMotion() ? 1 : 0.7 + progress * 0.3
+        : progress;
       g.lineStyle(
-        2.6 * (1 - progress),
+        (ring.groundContact ? 1.6 : 2.6) * (1 - progress),
         ring.color,
-        Math.max(0, 1 - progress)
+        Math.max(0, 1 - progress) * (ring.groundContact ? 0.65 : 1)
       ).strokeEllipse(
         ring.x,
         ring.y,
-        ring.radius * 2 * progress,
-        ring.radius * 1.6 * progress
+        ring.radius * 2 * spread,
+        ring.radius * (ring.groundContact ? 0.65 : 1.6) * spread
       );
     }
     this.transfers.forEach((transfer) => {

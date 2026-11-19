@@ -562,9 +562,9 @@ function updateAction(run: Run, actor: Actor, dt: number, events: GameEvent[]): 
       action.hitIds.push(target.id);
       if (!canTakeDamage(target)) continue;
       displace(run, target, action.dirX * 80, action.dirY * 80);
-      damage(run, target, enemy ? 1 : 5, actor.id, action.generation, !enemy && action.generation === 0 && has(run, 'venom-sacs'), 'A charge broke through your body.', events);
+      const hit = damage(run, target, enemy ? 1 : 5, actor.id, action.generation, !enemy && action.generation === 0 && has(run, 'venom-sacs'), 'A charge broke through your body.', events);
       if (target.hp > 0) target.stunMs = 250;
-      events.push({ type: 'impact', x: target.x, y: target.y, radius: 42, kind: 'charge', dirX: action.dirX, dirY: action.dirY });
+      events.push({ type: 'impact', sourceId: actor.id, faction: actor.faction, hitCount: Number(hit), x: target.x, y: target.y, radius: 42, kind: 'charge', dirX: action.dirX, dirY: action.dirY });
     }
     const stopped = distance(before, actor) < plannedDistance - 0.00001;
     if (stopped) {
@@ -584,11 +584,13 @@ function updateAction(run: Run, actor: Actor, dt: number, events: GameEvent[]): 
     const landedTargets = targets(run, actor)
       .filter(target => distance(actor, target) <= radius + (target.faction === 'player' ? PLAYER_BULLET_RADIUS : target.radius * 0.4) && hasLineOfSight(run, actor, target))
       .sort((a, b) => distance(actor, a) - distance(actor, b) || a.id - b.id);
+    let hitCount = 0;
     for (const target of landedTargets) {
       const hit = damage(run, target, enemy ? 1 : 5, actor.id, action.generation, !enemy && action.generation === 0 && has(run, 'venom-sacs'), 'A landing crushed your body.', events);
+      if (hit) hitCount += 1;
       if (hit && target.hp > 0) target.stunMs = 400;
     }
-    events.push({ type: 'impact', x: actor.x, y: actor.y, radius, kind: 'leap' });
+    events.push({ type: 'impact', sourceId: actor.id, faction: actor.faction, hitCount, x: actor.x, y: actor.y, radius, kind: 'leap' });
     actor.action = null;
   }
 }
@@ -628,13 +630,14 @@ function switchBody(run: Run, corpseId: number, events: GameEvent[]): boolean {
     events.push({ type: 'mutation', mutationId: 'silk-trail', x: fresh.x, y: fresh.y });
   }
   if (run.phase === 'playing' && has(run, 'shock-molt')) {
-    for (const target of run.actors.filter(actor => actor.faction === 'enemy' && actor.hp > 0 && distance(actor, fresh) < 135)) {
+    const affected = run.actors.filter(actor => actor.faction === 'enemy' && actor.hp > 0 && distance(actor, fresh) < 135);
+    for (const target of affected) {
       const away = direction(target.x - fresh.x, target.y - fresh.y);
       displace(run, target, away.x * 110, away.y * 110);
       target.stunMs = 600;
       target.action = null;
     }
-    events.push({ type: 'impact', x: fresh.x, y: fresh.y, radius: 135, kind: 'shock' });
+    events.push({ type: 'impact', sourceId: fresh.id, faction: fresh.faction, hitCount: affected.length, x: fresh.x, y: fresh.y, radius: 135, kind: 'shock' });
     events.push({ type: 'mutation', mutationId: 'shock-molt', x: fresh.x, y: fresh.y });
   }
   if (run.phase === 'cleared') {
