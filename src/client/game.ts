@@ -174,7 +174,8 @@ export class BodyHopScene extends Phaser.Scene {
     for (let page = 0; page < 2; page++) {
       const atlas = document.createElement("canvas");
       atlas.width = columns * tile;
-      atlas.height = 19 * tile;
+      const frameCount = 4 * (speciesList.length * 2 + 1) * 10 + (page === 0 ? speciesList.length * 2 : 0);
+      atlas.height = Math.ceil(frameCount / columns) * tile;
       const ctx = atlas.getContext("2d");
       if (!ctx) throw new Error("Canvas rendering is unavailable");
       const names: string[] = [];
@@ -209,21 +210,20 @@ export class BodyHopScene extends Phaser.Scene {
                 )
               );
             }
-        for (const stage of [0, 1, 2] as const)
-          for (let frame = 0; frame < 10; frame++) {
-            const pose =
-              frame === 8 ? "brace" : frame === 9 ? "strike" : "walk";
-            add(
-              `keeper-${stage}-${frame < 8 ? frame : pose}-${direction}`,
-              createKeeperTexture(
-                (frame / 8) * Math.PI * 2,
-                stage,
-                tile,
-                pose,
-                direction
-              )
-            );
-          }
+        for (let frame = 0; frame < 10; frame++) {
+          const pose =
+            frame === 8 ? "brace" : frame === 9 ? "strike" : "walk";
+          add(
+            `keeper-0-${frame < 8 ? frame : pose}-${direction}`,
+            createKeeperTexture(
+              (frame / 8) * Math.PI * 2,
+              0,
+              tile,
+              pose,
+              direction
+            )
+          );
+        }
       }
       if (page === 0)
         for (const species of speciesList)
@@ -1192,14 +1192,8 @@ export class BodyHopScene extends Phaser.Scene {
         ? Math.min(1, 1 - (transfer.life - dt) / transfer.max)
         : 1;
       const entering = transfer && !this.hooks.reducedMotion() && !actor.action;
-      const keeperStage =
-        actor.hp <= actor.maxHp / 3
-          ? 2
-          : actor.hp <= (actor.maxHp * 2) / 3
-          ? 1
-          : 0;
       const key = actor.elite
-        ? `keeper-${keeperStage}-${pose}-${direction}`
+        ? `keeper-0-${pose}-${direction}`
         : entering && arrival < 100 / transfer.max
         ? `${actor.species}-brace-wild-${direction}`
         : `${actor.species}-${entering && arrival < 0.65 ? "strike" : pose}-${
