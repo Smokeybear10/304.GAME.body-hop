@@ -334,11 +334,13 @@ export class GameInput {
   }
   private queueAbility(source: "mouse" | "keyboard" | "pad", aim: Vec2 | null = null) {
     this.syncHost();
+    if (!aim) this.aimAtPointerOrEnemy();
+    const committedAim = aim ?? (this.mouse ? null : this.aim);
     this.specialBlocked = false;
     this.abilityQueuedUntil = performance.now() + 160;
     this.queuedAbilitySource = source;
-    this.queuedAim = aim ? { ...aim } : null;
-    this.queuedAimDistance = aim ? this.targetDistance : null;
+    this.queuedAim = committedAim ? { ...committedAim } : null;
+    this.queuedAimDistance = committedAim ? this.targetDistance : null;
   }
   private blockNearbyBodies() {
     const run = this.getRun(), player = getPlayer(run);
@@ -443,10 +445,14 @@ export class GameInput {
   private nearestBody(range: number): Corpse | null {
     const run = this.getRun(), player = getPlayer(run);
     if (!["playing", "cleared"].includes(run.phase) || run.core <= 0 || player.hp <= 0) return null;
-    return run.corpses.filter(corpse => !corpse.spent && !corpse.consumed &&
-      !this.blockedBodies.has(corpse.id) &&
-      Math.hypot(corpse.x - player.x, corpse.y - player.y) <= range &&
-      hasLineOfSight(run, player, corpse))
+    const movement = this.movement();
+    return run.corpses.filter(corpse => {
+      const dx = corpse.x - player.x, dy = corpse.y - player.y;
+      const gap = Math.hypot(dx, dy);
+      return !corpse.spent && !corpse.consumed && !this.blockedBodies.has(corpse.id) &&
+        gap <= range && hasLineOfSight(run, player, corpse) &&
+        ((!movement.x && !movement.y) || gap <= 12 || movement.x * dx + movement.y * dy > 0);
+    })
       .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) -
         Math.hypot(b.x - player.x, b.y - player.y) || a.id - b.id)[0] ?? null;
   }
