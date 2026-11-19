@@ -1620,12 +1620,15 @@ export class BodyHopScene extends Phaser.Scene {
       );
     } else if (action.kind === "charge") {
       const px = -action.dirY * actor.radius,
-        py = action.dirX * actor.radius;
+        py = action.dirX * actor.radius,
+        angle = Math.atan2(action.dirY, action.dirX);
       g.fillStyle(color, 0.07 + progress * 0.1);
       const trace = () => g.beginPath().moveTo(actor.x + px, actor.y + py)
         .lineTo(action.targetX + px, action.targetY + py)
-        .lineTo(action.targetX - px, action.targetY - py)
-        .lineTo(actor.x - px, actor.y - py).closePath();
+        .arc(action.targetX, action.targetY, actor.radius, angle + Math.PI / 2, angle - Math.PI / 2, true)
+        .lineTo(actor.x - px, actor.y - py)
+        .arc(actor.x, actor.y, actor.radius, angle - Math.PI / 2, angle + Math.PI / 2, true)
+        .closePath();
       trace();
       g.fillPath();
       this.strokeTelegraph(enemy, 0.5 + progress * 0.35, trace);
