@@ -24,7 +24,7 @@ export const SPECIES: Record<Species, { name: string; action: string; radius: nu
 };
 export const MUTATIONS: Record<MutationId, { name: string; description: string; morphology: string }> = {
   'echo-tissue': { name: 'Echo Tissue', description: 'Switching bodies makes your old body repeat its last attack. Its kills leave fresh bodies.', morphology: 'A second parasite eye and a trailing afterbody.' },
-  'silk-trail': { name: 'Silk Trail', description: 'Switching leaves a thread that kills each enemy crossing it once.', morphology: 'Silk filaments connect the parasite to its abandoned host.' },
+  'silk-trail': { name: 'Silk Trail', description: 'After switching, leave a lethal silk trail as you move for 2 seconds. Threads fade after 2.6 seconds.', morphology: 'Silk filaments spool from the parasite onto the ground.' },
   'shock-molt': { name: 'Shock Molt', description: 'Entering a body throws nearby enemies back.', morphology: 'Raised shell plates snap outward on arrival.' },
   'venom-sacs': { name: 'Venom Sacs', description: 'Retired mutation from earlier runs.', morphology: 'Two swollen venom sacs beside the host organs.' },
   'split-glands': { name: 'Split Glands', description: 'Retired mutation from earlier runs.', morphology: 'Two lateral spines grow from every host.' },

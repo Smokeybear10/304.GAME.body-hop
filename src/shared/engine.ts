@@ -217,6 +217,7 @@ function prepareEncounter(run: Run, host: Checkpoint['host']): void {
   run.corpses = [];
   run.projectiles = [];
   run.areas = [];
+  run.silkTrail = null;
   run.encounterTimeMs = 0;
   run.encounterGroup = 0;
   run.hopCooldownMs = 0;
@@ -266,7 +267,7 @@ export function createRun(challenge: Challenge, _healthModel: HealthModel = 'sha
   const maxCore = 3;
   const run: Run = {
     challenge: { ...challenge }, runId, healthModel: 'shared', phase: 'ready', resumePhase: 'ready', encounterIndex: 0, completedEncounters: 0,
-    core: maxCore, maxCore, playerId: 0, actors: [], corpses: [], projectiles: [], areas: [], obstacles: [], mutations: [], rewardOffers: [],
+    core: maxCore, maxCore, playerId: 0, actors: [], corpses: [], projectiles: [], areas: [], silkTrail: null, obstacles: [], mutations: [], rewardOffers: [],
     activeTimeMs: 0, encounterTimeMs: 0, lineage: [{ species: 'spitter', encounterIndex: 0, atMs: 0 }], encounterRecords: [],
     counters: { kills: 0, hops: 0, specials: 0, damageTaken: 0 }, nextEntityId: 1, hopCooldownMs: 0, lossCause: '', boundaryCheckpoint: null, encounterGroup: 0, exit: { x: WORLD_WIDTH / 2, y: 72 },
   };
@@ -395,7 +396,7 @@ function damage(run: Run, target: Actor, amount: number, sourceId: number, gener
   events.push({ type: 'damage', targetId: target.id, x: target.x, y: target.y, amount, shellDamage, coreDamage, shellBroken: shellDamage > 0 && target.shell === 0, sourceId, faction: target.faction });
   if (target.hp > 0) return true;
   events.push({ type: 'death', id: target.id, x: target.x, y: target.y, species: target.species, player: target.faction === 'player' });
-  if (target.faction === 'player') { recordCombatEnd(run, 'failed'); run.phase = 'dead'; run.lossCause = cause; return true; }
+  if (target.faction === 'player') { recordCombatEnd(run, 'failed'); run.phase = 'dead'; run.silkTrail = null; run.lossCause = cause; return true; }
   run.counters.kills += 1;
   const corpse = { id: run.nextEntityId++, species: target.species, x: target.x, y: target.y, radius: SPECIES[target.species].radius, spent: false, elite: target.elite };
   run.corpses.push(corpse);
@@ -622,8 +623,8 @@ function switchBody(run: Run, corpseId: number, events: GameEvent[]): boolean {
     beginSpecial(run, echo, old.lastSpecial.dirX, old.lastSpecial.dirY, 1, events, old.lastSpecial.aimDistance);
     events.push({ type: 'mutation', mutationId: 'echo-tissue', x: old.x, y: old.y });
   }
-  if (run.phase === 'playing' && has(run, 'silk-trail') && run.areas.length < 32) {
-    run.areas.push({ id: run.nextEntityId++, ownerId: fresh.id, kind: 'silk', x: old.x, y: old.y, toX: fresh.x, toY: fresh.y, radius: 12, remainingMs: 2600, tickMs: 0, hitIds: [] });
+  if (run.phase === 'playing' && has(run, 'silk-trail')) {
+    run.silkTrail = { x: fresh.x, y: fresh.y, remainingMs: 2000, segmentId: null };
     events.push({ type: 'mutation', mutationId: 'silk-trail', x: fresh.x, y: fresh.y });
   }
   if (run.phase === 'playing' && has(run, 'shock-molt')) {
@@ -713,9 +714,42 @@ function updateProjectiles(run: Run, dt: number, events: GameEvent[]): void {
   run.projectiles = run.projectiles.filter(shot => shot.lifeMs > 0);
 }
 
+function updateSilkTrail(run: Run, dt: number, wasAirborne: boolean): void {
+  const trail = run.silkTrail;
+  if (!trail) return;
+  const player = getPlayer(run);
+  const airborne = wasAirborne || (player.action?.kind === 'leap' && player.action.stage === 'active');
+  const moved = distance(trail, player) > 0.01;
+  if (airborne || run.obstacles.some(rect => crossesRect(trail, player, rect, 12))) trail.segmentId = null;
+  else if (moved) {
+    const segment = run.areas.find(area => area.id === trail.segmentId && area.remainingMs > 0);
+    if (segment && distance(segment, player) <= 32 && distance(segment, player) >= distance(segment, trail) && segmentDistance(trail, segment, player) <= 2 &&
+      !run.obstacles.some(rect => crossesRect(segment, player, rect, 12))) {
+      segment.toX = player.x;
+      segment.toY = player.y;
+    } else {
+      if (run.areas.length >= 32) {
+        const oldestSilk = run.areas.findIndex(area => area.kind === 'silk');
+        if (oldestSilk >= 0) run.areas.splice(oldestSilk, 1);
+      }
+      if (run.areas.length < 32) {
+        const id = run.nextEntityId++;
+        run.areas.push({ id, ownerId: player.id, kind: 'silk', x: trail.x, y: trail.y, toX: player.x, toY: player.y,
+          radius: 12, remainingMs: 2600, tickMs: 0, hitIds: [] });
+        trail.segmentId = id;
+      }
+    }
+  }
+  trail.x = player.x;
+  trail.y = player.y;
+  trail.remainingMs -= dt;
+  if (trail.remainingMs <= 0) run.silkTrail = null;
+}
+
 function updateAreas(run: Run, dt: number, events: GameEvent[]): void {
   for (const area of run.areas) {
     area.remainingMs -= dt;
+    if (area.remainingMs <= 0) continue;
     area.tickMs -= dt;
     if (area.kind === 'acid' && area.tickMs > 0) continue;
     if (area.kind === 'acid') area.tickMs = 600;
@@ -752,6 +786,7 @@ function finishEncounter(run: Run, events: GameEvent[]): void {
   run.completedEncounters = run.encounterIndex + 1;
   run.projectiles = [];
   run.areas = [];
+  run.silkTrail = null;
   const player = getPlayer(run);
   if (player.action?.kind === 'leap' && player.action.stage === 'active') Object.assign(player, fitPosition(run, player.x, player.y, player.radius));
   player.action = null;
@@ -858,6 +893,7 @@ export function step(run: Run, input: InputFrame, dtMs = TICK_MS): GameEvent[] {
   const player = getPlayer(run);
   const aim = direction(player.action?.dirX ?? input.aimX, player.action?.dirY ?? input.aimY);
   if (aim.x || aim.y) { player.facingX = aim.x; player.facingY = aim.y; }
+  const wasAirborne = player.action?.kind === 'leap' && player.action.stage === 'active';
   for (const actor of [...run.actors]) {
     if (run.phase !== 'playing') break;
     if (actor.hp <= 0) continue;
@@ -882,6 +918,7 @@ export function step(run: Run, input: InputFrame, dtMs = TICK_MS): GameEvent[] {
   }
   if (run.phase === 'playing') {
     separateActors(run);
+    updateSilkTrail(run, dt, wasAirborne);
     updateProjectiles(run, dt, events);
     if (run.phase === 'playing') updateAreas(run, dt, events);
   }

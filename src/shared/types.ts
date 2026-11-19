@@ -128,6 +128,7 @@ export type Run = {
   challenge: Challenge; runId: string; healthModel: HealthModel; phase: Phase; resumePhase: 'ready' | 'playing' | 'cleared' | 'reward';
   encounterIndex: number; completedEncounters: number; core: number; maxCore: number; playerId: number;
   actors: Actor[]; corpses: Corpse[]; projectiles: Projectile[]; areas: Area[]; obstacles: Rect[];
+  silkTrail: { x: number; y: number; remainingMs: number; segmentId: number | null } | null;
   mutations: MutationId[]; rewardOffers: MutationId[]; activeTimeMs: number; encounterTimeMs: number;
   lineage: LineageEntry[]; encounterRecords: EncounterRecord[]; counters: Counters; nextEntityId: number; hopCooldownMs: number; lossCause: string; boundaryCheckpoint: Checkpoint | null;
   encounterGroup: number; exit: Vec2;

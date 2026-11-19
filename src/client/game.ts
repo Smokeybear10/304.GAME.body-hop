@@ -830,11 +830,12 @@ export class BodyHopScene extends Phaser.Scene {
               3 + Math.sin(this.elapsed * 0.005 + i)
             );
       } else {
+        const presence = Math.min(1, area.remainingMs / 500);
         ground
-          .lineStyle(6, BLACK, 0.65)
+          .lineStyle(6, BLACK, 0.65 * presence)
           .lineBetween(area.x, area.y, area.toX, area.toY);
         ground
-          .lineStyle(3, LIGHT, 0.95)
+          .lineStyle(3, LIGHT, 0.95 * presence)
           .lineBetween(area.x, area.y, area.toX, area.toY);
       }
     }
@@ -1566,12 +1567,21 @@ export class BodyHopScene extends Phaser.Scene {
     };
     drawMutationGrafts(
       g,
-      run.mutations,
+      run.mutations.filter((id) => id !== "silk-trail"),
       point,
       scale,
       this.mutationPulse,
-      this.elapsed
+      this.hooks.reducedMotion() ? 0 : this.elapsed
     );
+    if (run.silkTrail) {
+      const presence = Math.min(1, run.silkTrail.remainingMs / 300);
+      const sway = this.hooks.reducedMotion() ? 0 : Math.sin(this.elapsed * 0.006) * 6;
+      const root = point(-24, 0), tip = point(-44, sway);
+      g.lineStyle(4, BLACK, 0.8 * presence)
+        .lineBetween(root.x, root.y, tip.x, tip.y);
+      g.lineStyle(2, LIGHT, presence)
+        .lineBetween(root.x, root.y, tip.x, tip.y);
+    }
     if (run.healthModel === "shell-core" && actor.shell < actor.maxShell) {
       const damage = 1 - actor.shell / actor.maxShell;
       const cuts = [
