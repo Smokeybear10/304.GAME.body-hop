@@ -155,6 +155,42 @@ function bread(ctx: CanvasRenderingContext2D, wall: Rect, scorched: boolean) {
   ctx.restore();
 }
 
+function ribs(ctx: CanvasRenderingContext2D, wall: Rect) {
+  ctx.save();
+  ctx.translate(wall.x, wall.y);
+  ctx.scale(wall.width / 90, wall.height / 220);
+  ctx.fillStyle = "#453a34";
+  ctx.fillRect(0, 0, 90, 220);
+  ctx.beginPath();
+  ctx.rect(1, 1, 88, 218);
+  ctx.clip();
+  if (wall.x > WORLD_WIDTH / 2) {
+    ctx.translate(90, 0);
+    ctx.scale(-1, 1);
+  }
+  fill(ctx, "M2 4 L29 7 L54 3 L86 7 L88 51 L84 105 L88 158 L86 215 L59 211 L32 216 L3 211 Z", "#795e54");
+  fill(ctx, "M69 6 L87 7 L88 54 L82 103 L88 155 L86 213 L73 210 L78 155 L72 99 L76 51 Z", "#604941");
+  fill(ctx, "M3 198 L27 204 L47 201 L70 207 L86 203 L86 217 L57 214 L31 218 L3 213 Z", "#514139");
+  fill(ctx, "M9 11 L19 8 L25 25 L20 62 L25 83 L20 117 L25 139 L20 172 L25 195 L17 210 L9 207 L12 170 L8 140 L12 112 L8 81 L12 54 Z", "#928a73", "#574a3e", 1.5);
+  for (const [y, bend] of [[35, -3], [91, 3], [147, -1]] as const) {
+    fill(ctx,
+      `M16 ${y + 4} C35 ${y - 18} 63 ${y - 8 + bend} 78 ${y + 13}
+       Q83 ${y + 21} 75 ${y + 28} C59 ${y + 9 + bend} 39 ${y + 5} 19 ${y + 17} Z`,
+      "#513e35"
+    );
+    fill(ctx,
+      `M15 ${y} C34 ${y - 20} 62 ${y - 11 + bend} 77 ${y + 10}
+       Q81 ${y + 17} 74 ${y + 23} C59 ${y + 5 + bend} 38 ${y + 1} 18 ${y + 13} Z`,
+      "#aaa087", "#655a49", 1.5
+    );
+    line(ctx, `M20 ${y + 1} C38 ${y - 12} 58 ${y - 7 + bend} 72 ${y + 10}`, "#bab198", 2.5);
+    fill(ctx, `M14 ${y - 3} Q23 ${y - 6} 24 ${y + 3} L21 ${y + 13} L13 ${y + 15} Z`, "#a1977e");
+    line(ctx, `M31 ${y + 25} C47 ${y + 18} 65 ${y + 29} 74 ${y + 42}`, "#947b68", 3);
+  }
+  line(ctx, "M5 8 L27 11 L46 7 L67 10 L83 8", "#a18d73", 2.5);
+  ctx.restore();
+}
+
 function chamberWear(ctx: CanvasRenderingContext2D, chamber: number) {
   const dish = DISHES[chamber]!;
   ctx.save();
@@ -452,6 +488,9 @@ export function createFeastFloor(
     fill(ctx, outline!, "#c9bea0", "#39453c", 1.5);
     line(ctx, fracture!, "#847c64", 1.2);
   }
-  for (const obstacle of obstacles) bread(ctx, obstacle, chamber === 4);
+  for (const obstacle of obstacles) {
+    if (chamber === 3) ribs(ctx, obstacle);
+    else bread(ctx, obstacle, chamber === 4);
+  }
   return canvas;
 }
