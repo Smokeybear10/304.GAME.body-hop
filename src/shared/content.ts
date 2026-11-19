@@ -39,10 +39,10 @@ export function hashSeed(value: string): number {
 export function createChallenge(date: string, seed = hashSeed(`${SEED_NAMESPACE}:${date}`)): Challenge {
   return { id: `${CONTENT_VERSION}:${date}`, date, contentVersion: CONTENT_VERSION, seed: seed >>> 0 };
 }
-const GROUP_SIZES = [[3, 3], [3, 3, 4], [4, 4, 4], [4, 5, 5], [5, 5, 6], [5, 6, 7]];
+const GROUP_SIZES = [[2, 2, 2], [3, 3, 4], [4, 4, 4], [4, 5, 5], [5, 5, 6], [5, 6, 7]];
 const ENCOUNTERS: Omit<Encounter, 'groups'>[] = [
   { name: 'First skin', description: 'One hit breaks a body. Move close to wear it and heal.', start: { x: 360, y: 760 }, obstacles: [], enemies: [
-    { species: 'beetle', x: 360, y: 430 }, { species: 'spitter', x: 180, y: 220 }, { species: 'hopper', x: 540, y: 250 }, { species: 'spitter', x: 540, y: 150 },
+    { species: 'beetle', x: 360, y: 620 }, { species: 'spitter', x: 180, y: 400 }, { species: 'hopper', x: 540, y: 570 }, { species: 'spitter', x: 540, y: 150 },
     { species: 'hopper', x: 100, y: 570 }, { species: 'spitter', x: 620, y: 420 },
   ] },
   { name: 'Split chamber', description: 'A body on the other side is a new angle.', start: { x: 360, y: 800 }, obstacles: [{ x: 280, y: 390, width: 160, height: 110 }], enemies: [
@@ -94,7 +94,7 @@ export function getEncounter(challenge: Challenge, index: number): Encounter {
   const dailyRoom = index === 2 ? dailyRoomDefinition(challenge) : null;
   const template = dailyRoom ?? ENCOUNTERS[Math.min(ENCOUNTER_COUNT - 1, Math.max(0, index))]!;
   const mirrored = ((challenge.seed >>> (index % 16)) & 1) === 1;
-  const ordered = index === ENCOUNTER_COUNT - 1 ? [...template.enemies.slice(1, 7), template.enemies[0]!, ...template.enemies.slice(7)] : template.enemies;
+  const ordered = index === ENCOUNTER_COUNT - 1 ? [...template.enemies.slice(1), template.enemies[0]!] : template.enemies;
   const enemies = ordered.map((spawn, ordinal) => ({ ...spawn, x: (mirrored ? WORLD_WIDTH - spawn.x : spawn.x) + (index === 0 ? 0 : hashSeed(`${challenge.seed}:${index}:${ordinal}`) % 31 - 15) }));
   let offset = 0;
   const groups = (dailyRoom?.groupSizes ?? GROUP_SIZES[index]!).map(size => { const group = enemies.slice(offset, offset + size); offset += size; return group; });

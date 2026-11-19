@@ -830,7 +830,8 @@ function spawnNextGroup(run: Run, events: GameEvent[]): void {
       if (candidates[0]) Object.assign(enemy, candidates[0]);
     }
     enemy.basicCooldownMs = 1100 + index * 150;
-    enemy.specialCooldownMs = 1500 + index * 200;
+    enemy.specialCooldownMs = enemy.elite ? 0 : 1500 + index * 200;
+    if (enemy.elite) enemy.volleyCount = 1;
     run.actors.push(enemy);
     ids.push(enemy.id);
   }
@@ -926,7 +927,7 @@ export function step(run: Run, input: InputFrame, dtMs = TICK_MS): GameEvent[] {
   if (run.phase === 'playing') {
     const remaining = run.actors.filter(actor => actor.faction === 'enemy').length;
     const groups = getEncounter(run.challenge, run.encounterIndex).groups;
-    const threshold = groups[run.encounterGroup]!.length === 1 ? 0 : 1;
+    const threshold = groups[run.encounterGroup]!.length === 1 || groups[run.encounterGroup + 1]?.some(spawn => spawn.elite) ? 0 : 1;
     if (remaining <= threshold && run.encounterGroup < groups.length - 1) spawnNextGroup(run, events);
     else if (remaining === 0) finishEncounter(run, events);
   }
