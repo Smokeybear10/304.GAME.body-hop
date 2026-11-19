@@ -315,8 +315,11 @@ export function restoreCheckpoint(value: unknown, challenge: Challenge): Run | n
 }
 
 export function startEncounter(run: Run): GameEvent[] {
-  if (run.phase === 'ready') { run.phase = 'playing'; run.resumePhase = 'playing'; }
-  return [];
+  if (run.phase !== 'ready') return [];
+  run.phase = 'playing';
+  run.resumePhase = 'playing';
+  return [{ type: 'spawn', ids: run.actors.filter(actor => actor.faction === 'enemy' && actor.hp > 0).map(actor => actor.id),
+    group: run.encounterGroup, totalGroups: getEncounter(run.challenge, run.encounterIndex).groups.length }];
 }
 export function pause(run: Run): void {
   if (run.phase !== 'ready' && run.phase !== 'playing' && run.phase !== 'cleared' && run.phase !== 'reward') return;
