@@ -729,6 +729,9 @@ kbd {
 body[data-phase="playing"] .wordmark {
   opacity: 0.65;
 }
+body:is([data-phase="ready"], [data-phase="paused"]) .control-deck {
+  visibility: hidden;
+}
 @keyframes wriggle {
   to {
     transform: rotate(12deg) scaleX(0.88);
@@ -1746,9 +1749,6 @@ body[data-phase="reward"] .screen {
   }
   .control-deck kbd {
     font-size: 11px;
-  }
-  body:is([data-phase="ready"], [data-phase="paused"]) .control-deck {
-    visibility: hidden;
   }
   body[data-phase="reward"] .overlay,
   body[data-result="true"] .overlay {
