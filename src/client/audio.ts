@@ -23,7 +23,8 @@ export class GameAudio {
       this.effects = this.context.createGain();
       this.effects.connect(this.master);
     }
-    if (this.context.state === "suspended") await this.context.resume();
+    if (this.context.state === "suspended" || this.context.state === "interrupted")
+      await this.context.resume();
   }
   setMuted(muted: boolean) {
     this.muted = muted;
