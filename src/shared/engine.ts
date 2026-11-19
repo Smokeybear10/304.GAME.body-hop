@@ -251,7 +251,7 @@ function captureBoundary(run: Run): Checkpoint {
     schemaVersion: 2, challengeId: run.challenge.id, contentVersion: run.challenge.contentVersion, runId: run.runId, healthModel: 'shared',
     encounterIndex: run.encounterIndex, boundary: run.phase === 'reward' ? 'reward' : run.phase === 'cleared' ? 'cleared' : 'encounter-start',
     core: run.core, maxCore: 3, hopCooldownMs: run.hopCooldownMs,
-    host: { species: player.species, shell: 0, specialCooldownMs: player.specialCooldownMs, basicCooldownMs: player.basicCooldownMs, lastSpecial: player.lastSpecial ? { ...player.lastSpecial } : null, position: { x: player.x, y: player.y } },
+    host: { species: player.species, shell: 0, specialCooldownMs: player.specialCooldownMs, basicCooldownMs: player.basicCooldownMs, lastSpecial: player.lastSpecial ? { ...player.lastSpecial } : null, position: fitPosition(run, player.x, player.y, player.radius) },
     clearedCorpses: run.phase === 'cleared' ? run.corpses.map(corpse => ({ ...corpse })) : [],
     mutations: [...run.mutations], rewardOffers: [...run.rewardOffers], completedEncounters: run.completedEncounters,
     activeTimeMs: run.activeTimeMs, lineage: run.lineage.map(entry => ({ ...entry })), counters: { ...run.counters }, nextEntityId: run.nextEntityId,
@@ -846,8 +846,6 @@ function finishEncounter(run: Run, events: GameEvent[]): void {
   run.areas = [];
   run.silkTrail = null;
   const player = getPlayer(run);
-  if (player.action?.kind === 'leap' && player.action.stage === 'active') Object.assign(player, fitPosition(run, player.x, player.y, player.radius));
-  player.action = null;
   player.specialCooldownMs = 0;
   player.basicCooldownMs = 0;
   run.actors = [player];
