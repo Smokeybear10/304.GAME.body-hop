@@ -159,6 +159,8 @@ export class BodyHopScene extends Phaser.Scene {
   private elapsed = 0;
   private phaseStartedAt = 0;
   private visualPhase = "";
+  private exitOpen: boolean | null = null;
+  private exitOpeningMs = 0;
   private lastFrameTime: number | null = null;
   constructor(private hooks: SceneHooks) {
     super("body-hop");
@@ -408,6 +410,8 @@ export class BodyHopScene extends Phaser.Scene {
     this.mutationPulse.clear();
     this.bodyPoints.clear();
     this.gait.clear();
+    this.exitOpen = null;
+    this.exitOpeningMs = 0;
   }
   receive(events: GameEvent[]) {
     const departed = new Map<number, Vec2>();
@@ -869,7 +873,14 @@ export class BodyHopScene extends Phaser.Scene {
           run.phase === "cleared" ||
           run.phase === "escaped" ||
           (run.phase === "paused" && run.resumePhase === "cleared");
-      const gap = open ? 21 : 0;
+      if (this.exitOpen !== open) {
+        this.exitOpeningMs = this.exitOpen === false && open ? 240 : 0;
+        this.exitOpen = open;
+      } else if (run.phase !== "paused") {
+        this.exitOpeningMs = Math.max(0, this.exitOpeningMs - dt);
+      }
+      if (this.hooks.reducedMotion()) this.exitOpeningMs = 0;
+      const gap = open ? 21 * (1 - (this.exitOpeningMs / 240) ** 3) : 0;
       ground.fillStyle(0x151c1c, 1).fillEllipse(x, y - 9, 110, 74);
       ground
         .fillStyle(open ? 0x0f1215 : 0x303a35, 1)
@@ -1266,7 +1277,14 @@ export class BodyHopScene extends Phaser.Scene {
           ? Math.min(1, (this.elapsed - this.phaseStartedAt) / 350)
           : 0;
       const presence = 1 - escaping;
-      lift += escaping * 55;
+      if (escaping > 0 && !this.hooks.reducedMotion()) {
+        const enteringExit = 1 - (1 - escaping) ** 2;
+        visual.x += (run.exit.x - visual.x) * enteringExit;
+        visual.y += (run.exit.y - 3 - visual.y) * enteringExit;
+        lift *= 1 - enteringExit;
+        squashX *= 1 - enteringExit * 0.45;
+        squashY *= 1 - enteringExit * 0.45;
+      }
       const anchor = creatureAnchor(actor.species, direction),
         unit = size / 112;
       this.bodyPoints.set(actor.id, {
@@ -1276,8 +1294,8 @@ export class BodyHopScene extends Phaser.Scene {
       ground
         .fillStyle(BLACK, (echo ? 0.05 : 0.16) * presence)
         .fillEllipse(
-          actor.x + 4,
-          actor.y + actor.radius * 0.7,
+          (escaping > 0 ? visual.x : actor.x) + 4,
+          (escaping > 0 ? visual.y : actor.y) + actor.radius * 0.7,
           actor.radius * 2.3 - lift * 0.25,
           actor.radius * 0.75 - lift * 0.06
         );
@@ -1316,23 +1334,25 @@ export class BodyHopScene extends Phaser.Scene {
           .strokeCircle(actor.x, actor.y, actor.radius + 3);
       }
       if (owned) {
-        this.drawAbilityMeter(actor, visual, lift, presence);
-        marks
-          .lineStyle(this.screenSize(2.4, 2.1), BLACK, 0.7 * presence)
-          .strokeEllipse(
-            actor.x,
-            actor.y + actor.radius * 0.6,
-            actor.radius * 2.65 + 3,
-            actor.radius * 0.9 + 3
-          );
-        marks
-          .lineStyle(this.screenSize(1.2, 1.1), LIGHT, presence)
-          .strokeEllipse(
-            actor.x,
-            actor.y + actor.radius * 0.6,
-            actor.radius * 2.65 + 3,
-            actor.radius * 0.9 + 3
-          );
+        if (run.phase !== "escaped") {
+          this.drawAbilityMeter(actor, visual, lift, presence);
+          marks
+            .lineStyle(this.screenSize(2.4, 2.1), BLACK, 0.7 * presence)
+            .strokeEllipse(
+              actor.x,
+              actor.y + actor.radius * 0.6,
+              actor.radius * 2.65 + 3,
+              actor.radius * 0.9 + 3
+            );
+          marks
+            .lineStyle(this.screenSize(1.2, 1.1), LIGHT, presence)
+            .strokeEllipse(
+              actor.x,
+              actor.y + actor.radius * 0.6,
+              actor.radius * 2.65 + 3,
+              actor.radius * 0.9 + 3
+            );
+        }
         this.grafts.setDepth(10 + actor.y + 0.5).setAlpha(presence);
         if (!entering || arrival >= 100 / transfer.max)
           this.drawMorphology(
