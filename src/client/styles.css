@@ -1821,6 +1821,20 @@ body[data-phase="reward"] .screen {
 .mutation-strip[data-empty="true"] {
   visibility: hidden;
 }
+body[data-recovered-result="true"] .game-shell {
+  display: block;
+  width: min(100%, 550px);
+}
+body[data-recovered-result="true"] .stage-wrap {
+  aspect-ratio: auto;
+}
+body[data-recovered-result="true"] .overlay {
+  position: relative;
+  max-height: calc(var(--viewport-height) - 110px);
+}
+body[data-recovered-result="true"] :is(#hud, #mutation-strip) {
+  display: none;
+}
 #save-status[data-status="saved"] {
   color: #b7ad98;
 }

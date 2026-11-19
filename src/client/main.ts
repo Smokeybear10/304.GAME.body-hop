@@ -77,6 +77,7 @@ let reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let savedBoundary = "";
 let lastHud = "";
 let restored = false;
+let recoveredResult: RunResult | null = null;
 let resultRevealAt = 0;
 let healthNotice = "";
 let healthNoticeUntil = 0;
@@ -174,6 +175,7 @@ function dispatch(events: GameEvent[]) {
 }
 
 function saveBoundary() {
+  if (recoveredResult) return;
   if (
     run.phase !== "ready" &&
     run.phase !== "reward" &&
@@ -222,7 +224,7 @@ function tick(dt: number) {
 }
 
 function begin() {
-  if (!rendererReady || graphicsLost) return;
+  if (!rendererReady || graphicsLost || recoveredResult) return;
   if (store.status === "conflict") {
     pauseGame();
     return;
@@ -243,7 +245,7 @@ function begin() {
 }
 
 function pauseGame(message?: string) {
-  if (!run || run.phase === "dead" || run.phase === "escaped") return;
+  if (!run || recoveredResult || run.phase === "dead" || run.phase === "escaped") return;
   if (run.phase !== "paused") {
     pauseReason = message ?? "";
     pause(run);
@@ -255,6 +257,8 @@ function pauseGame(message?: string) {
 }
 
 function newAttempt() {
+  recoveredResult = null;
+  resultRevealAt = 0;
   run = createRun(store.bootstrap.challenge, "shared", crypto.randomUUID());
   replacement = null;
   settingsOpen = false;
@@ -282,13 +286,15 @@ function updateSaveStatus() {
   target.textContent =
     store.status === "saved" &&
     run &&
-    (run.phase === "dead" || run.phase === "escaped")
+    (recoveredResult || run.phase === "dead" || run.phase === "escaped")
       ? "Run saved"
       : labels[store.status];
   target.title =
     store.error ??
     "Progress saves between chambers. Leaving during a fight restarts that chamber.";
   target.dataset.status = store.status;
+  const retry = document.getElementById("retry-button");
+  if (retry && store.status === "conflict") retry.textContent = "Reload saved run";
   if (
     store.status === "conflict" &&
     run &&
@@ -425,7 +431,7 @@ function updateHud() {
     run.phase === "paused" ? "Resume game" : "Pause game"
   );
   element<HTMLButtonElement>("pause-button").disabled =
-    graphicsLost || run.phase === "dead" || run.phase === "escaped";
+    graphicsLost || Boolean(recoveredResult) || run.phase === "dead" || run.phase === "escaped";
 }
 
 function showScreen(markup: string) {
@@ -476,7 +482,8 @@ function drawPortrait(species: Species, showParasite = false) {
 function updateUi(force = false) {
   if (!rendererReady) return;
   updateHud();
-  const phaseKey = `${run.runId}:${run.phase}:${run.encounterIndex}:${settingsOpen}:${replacement}`;
+  const phase = recoveredResult?.outcome ?? run.phase;
+  const phaseKey = `${recoveredResult?.runId ?? run.runId}:${phase}:${run.encounterIndex}:${settingsOpen}:${replacement}`;
   if (phaseKey === lastPhase && !force && !resultRevealAt) return;
   if (renderer && !renderer.game.loop.running) {
     queueMicrotask(() => {
@@ -488,13 +495,18 @@ function updateUi(force = false) {
     });
   }
   lastPhase = phaseKey;
-  document.body.dataset.phase = run.phase;
-  if (run.phase !== "dead" && run.phase !== "escaped")
+  document.body.dataset.phase = phase;
+  document.body.dataset.recoveredResult = String(Boolean(recoveredResult));
+  if (phase !== "dead" && phase !== "escaped")
     delete document.body.dataset.result;
   if (run.phase !== "playing" && run.phase !== "cleared") input?.clear();
   saveBoundary();
   if (settingsOpen) {
     renderSettings();
+    return;
+  }
+  if (recoveredResult) {
+    renderResult(recoveredResult);
     return;
   }
   if (run.phase === "playing" || run.phase === "cleared") {
@@ -773,7 +785,7 @@ function renderSettings() {
     }</p>
     <p class="fine-print">Enemies die in one hit. Kills leave bodies you can choose to use once. Clear the chamber, then leave through the opening above.</p>
     <p class="health-rule"><strong>Red hearts = life.</strong> ${healthExplanation()}<br>Dodge with the small ring at your center.</p>
-    <button id="close-settings" class="primary-button" type="button">Back to the body</button>`);
+    <button id="close-settings" class="primary-button" type="button">${recoveredResult ? "Back to body record" : "Back to the body"}</button>`);
   element<HTMLInputElement>("setting-sound").addEventListener(
     "change",
     (event) => {
@@ -855,7 +867,7 @@ function renderResult(result: RunResult) {
   } · ${clock(result.activeTimeMs)} active</p>
     <p class="result-build">${mutations || "No mutations"}</p>
     <div class="result-actions">
-      <button id="retry-button" class="primary-button" type="button">Retry this escape</button>
+      <button id="retry-button" class="primary-button" type="button">${store.status === "conflict" ? "Reload saved run" : "Retry this escape"}</button>
       <button id="copy-result" class="text-button" type="button">Copy body record</button>
     </div>
     <div id="manual-copy" hidden><label for="result-copy-text">Select and copy your record</label><textarea id="result-copy-text" readonly rows="5"></textarea><button id="close-copy" class="text-button" type="button">Close</button></div>
@@ -927,6 +939,10 @@ function renderResult(result: RunResult) {
   }
   element("result-heading").focus({ preventScroll: true });
   bind("retry-button", () => {
+    if (store.status === "conflict") {
+      location.reload();
+      return;
+    }
     newAttempt();
     begin();
   });
@@ -999,7 +1015,10 @@ async function launch() {
     }
     run = loaded;
     restored = true;
-  } else newAttempt();
+  } else {
+    newAttempt();
+    recoveredResult = store.latestResult;
+  }
   connectGame();
 }
 
