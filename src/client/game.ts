@@ -115,6 +115,7 @@ export class BodyHopScene extends Phaser.Scene {
   private foreground!: Phaser.GameObjects.Graphics;
   private grafts!: Phaser.GameObjects.Graphics;
   private keeperLabel!: Phaser.GameObjects.Text;
+  private cooldownLabel!: Phaser.GameObjects.Text;
   private keeperArrivalMs = 0;
   private canvasRendering = false;
   private simulationPoses = new Map<number, SimulationPose>();
@@ -275,6 +276,19 @@ export class BodyHopScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 1)
       .setDepth(2100)
+      .setVisible(false);
+    this.cooldownLabel = this.add
+      .text(0, 0, "", {
+        fontFamily: "Courier New",
+        fontStyle: "bold",
+        fontSize: "18px",
+        color: INK.paper,
+        stroke: INK.black,
+        strokeThickness: 4,
+        padding: { x: 2, y: 1 },
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(2101)
       .setVisible(false);
     const redraw = () => this.game.loop.wake();
     this.scale.on(Phaser.Scale.Events.RESIZE, redraw);
@@ -852,6 +866,7 @@ export class BodyHopScene extends Phaser.Scene {
     marks.clear();
     front.clear();
     this.grafts.clear();
+    this.cooldownLabel.setVisible(false);
     this.drawDeathPoses(run);
     this.drawAftermath();
     this.keeperArrivalMs = Math.max(0, this.keeperArrivalMs - dt);
@@ -1520,6 +1535,24 @@ export class BodyHopScene extends Phaser.Scene {
         y,
         actor.action ? 3 : 2
       );
+    }
+    const feedback = this.hooks.getInput()?.cooldownFeedback;
+    if (feedback) {
+      const label = this.cooldownLabel;
+      const fontSize = Math.ceil(this.screenSize(18, 12));
+      if (label.style.fontSize !== `${fontSize}px`) label.setFontSize(fontSize);
+      label.setText(`${(Math.ceil(feedback.cooldownMs / 100) / 10).toFixed(1)}s`);
+      const gap = this.screenSize(7, 4), margin = this.screenSize(8, 4);
+      const right = x + radius + gap;
+      const labelX = right + label.width <= WORLD_WIDTH - margin
+        ? right : x - radius - gap - label.width;
+      label
+        .setPosition(
+          Phaser.Math.Clamp(labelX, margin, WORLD_WIDTH - label.width - margin),
+          Phaser.Math.Clamp(y, label.height / 2 + margin, WORLD_HEIGHT - label.height / 2 - margin)
+        )
+        .setAlpha(presence * (this.hooks.reducedMotion() ? 1 : Math.min(1, feedback.expiresInMs / 100)))
+        .setVisible(true);
     }
   }
   private dashedCircle(

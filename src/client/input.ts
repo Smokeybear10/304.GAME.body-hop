@@ -24,6 +24,7 @@ export class GameInput {
   private mouse: Vec2 | null = null;
   private targetSample: { id: number; x: number; y: number; timeMs: number; vx: number; vy: number } | null = null;
   private abilityQueuedUntil = 0;
+  private cooldownFeedbackUntil = 0;
   private blockedBodies = new Set<number>();
   private queuedAbilitySource: "mouse" | "keyboard" | "pad" | null = null;
   private queuedAim: Vec2 | null = null;
@@ -386,6 +387,10 @@ export class GameInput {
   }
   private queueAbility(source: "mouse" | "keyboard" | "pad", aim: Vec2 | null = null) {
     this.syncHost();
+    const player = getPlayer(this.getRun());
+    this.cooldownFeedbackUntil = player.species !== "spitter" && !player.action &&
+      player.stunMs <= 0 && player.specialCooldownMs > TICK_MS
+      ? performance.now() + 300 : 0;
     if (!aim) this.aimAtPointerOrEnemy();
     const committedAim = aim ?? (this.mouse ? null : this.aim);
     this.specialBlocked = false;
@@ -409,6 +414,7 @@ export class GameInput {
       this.hostId = player.id;
       this.hostSpecies = player.species;
       this.runId = run.runId;
+      this.cooldownFeedbackUntil = 0;
       this.blockNearbyBodies();
       this.abilityQueuedUntil = 0;
       this.queuedAbilitySource = null;
@@ -463,6 +469,7 @@ export class GameInput {
     const hopCommitId = (movement.x || movement.y) && !player.action &&
       body && canSwitchBody(run, body.id) ? body.id : null;
     if (hopCommitId !== null) {
+      this.cooldownFeedbackUntil = 0;
       this.abilityQueuedUntil = 0;
       this.queuedAbilitySource = null;
       this.queuedAim = null;
@@ -486,6 +493,7 @@ export class GameInput {
       hopCommitId,
     };
     if (abilityPressed) {
+      this.cooldownFeedbackUntil = 0;
       this.abilityQueuedUntil = 0;
       this.queuedAbilitySource = null;
       this.queuedAim = null;
@@ -513,6 +521,14 @@ export class GameInput {
       .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) -
         Math.hypot(b.x - player.x, b.y - player.y) || a.id - b.id)[0] ?? null;
   }
+  get cooldownFeedback() {
+    const run = this.getRun(), player = getPlayer(run);
+    const expiresInMs = this.cooldownFeedbackUntil - performance.now();
+    if (expiresInMs <= 0 || run.runId !== this.runId || player.id !== this.hostId ||
+      !["playing", "cleared"].includes(run.phase) || player.hp <= 0 ||
+      player.action || player.stunMs > 0 || player.specialCooldownMs <= 0) return null;
+    return { cooldownMs: player.specialCooldownMs, expiresInMs };
+  }
   get aimDirection() {
     return this.aim;
   }
@@ -528,6 +544,7 @@ export class GameInput {
     this.moveDrag = null;
     this.actionDrag = null;
     this.abilityQueuedUntil = 0;
+    this.cooldownFeedbackUntil = 0;
     this.queuedAbilitySource = null;
     this.queuedAim = null;
     this.queuedAimDistance = null;
