@@ -3,9 +3,10 @@ import {
   getPlayer,
   canSwitchBody,
   hasLineOfSight,
+  previewCharge,
 } from "../shared/engine";
-import { BODY_SWITCH_RANGE, LEAP_DISTANCE, TICK_MS, WORLD_HEIGHT, WORLD_WIDTH } from "../shared/content";
-import type { Corpse, InputFrame, Run, Vec2 } from "../shared/types";
+import { BODY_SWITCH_RANGE, ENEMY_WALK_SPEED_SCALE, LEAP_DISTANCE, PLAYER_SPIT_SPEED, PLAYER_SPIT_WINDUP_MS, SPECIES, TICK_MS, WORLD_HEIGHT, WORLD_WIDTH } from "../shared/content";
+import type { Actor, Corpse, InputFrame, Run, Vec2 } from "../shared/types";
 
 type Drag = {
   id: number;
@@ -21,6 +22,7 @@ export class GameInput {
   private aim: Vec2 = { x: 0, y: -1 };
   private targetDistance = LEAP_DISTANCE;
   private mouse: Vec2 | null = null;
+  private targetSample: { id: number; x: number; y: number; timeMs: number; vx: number; vy: number } | null = null;
   private abilityQueuedUntil = 0;
   private blockedBodies = new Set<number>();
   private queuedAbilitySource: "mouse" | "keyboard" | "pad" | null = null;
@@ -305,12 +307,42 @@ export class GameInput {
       options
     );
   }
+  private assistedTarget(run: Run, enemy: Actor): Vec2 {
+    const player = getPlayer(run), previous = this.targetSample;
+    const elapsed = previous ? (run.activeTimeMs - previous.timeMs) / 1000 : 0;
+    let vx = 0, vy = 0;
+    if (previous?.id === enemy.id && elapsed === 0) {
+      vx = previous.vx;
+      vy = previous.vy;
+    } else if (previous?.id === enemy.id && elapsed > 0 && elapsed <= 0.1) {
+      vx = (enemy.x - previous.x) / elapsed;
+      vy = (enemy.y - previous.y) / elapsed;
+    }
+    this.targetSample = { id: enemy.id, x: enemy.x, y: enemy.y, timeMs: run.activeTimeMs, vx, vy };
+    const speed = Math.hypot(vx, vy);
+    if (player.species !== "spitter" || enemy.action || enemy.stunMs > 0 || speed === 0 ||
+      speed > SPECIES[enemy.species].speed * ENEMY_WALK_SPEED_SCALE + 1) return enemy;
+
+    const movement = this.movement(), windup = PLAYER_SPIT_WINDUP_MS / 1000;
+    const origin = previewCharge(run, player, movement.x, movement.y,
+      Math.min(1, Math.hypot(movement.x, movement.y)) * SPECIES[player.species].speed * windup);
+    const muzzle = player.radius + 7;
+    let flight = Math.max(0, (Math.hypot(enemy.x - origin.x, enemy.y - origin.y) - muzzle) / PLAYER_SPIT_SPEED);
+    for (let index = 0; index < 3; index++) {
+      flight = Math.max(0, (Math.hypot(enemy.x + vx * (windup + flight) - origin.x,
+        enemy.y + vy * (windup + flight) - origin.y) - muzzle) / PLAYER_SPIT_SPEED);
+    }
+    const forecast = previewCharge(run, enemy, vx, vy, Math.min(120, speed * Math.min(1, windup + flight)));
+    if (!hasLineOfSight(run, origin, forecast, 8)) return enemy;
+    return { x: forecast.x + player.x - origin.x, y: forecast.y + player.y - origin.y };
+  }
   private aimAtPointerOrEnemy() {
     if (this.actionDrag && Math.hypot(this.actionDrag.x - this.actionDrag.startX, this.actionDrag.y - this.actionDrag.startY) > 8)
       return;
     const run = this.getRun(),
       player = getPlayer(run);
     let target = this.mouse;
+    if (target) this.targetSample = null;
     if (!target) {
       const enemy = run.actors
         .filter((a) => a.faction === "enemy" && a.hp > 0 && hasLineOfSight(run, player, a))
@@ -319,7 +351,8 @@ export class GameInput {
             Math.hypot(a.x - player.x, a.y - player.y) -
             Math.hypot(b.x - player.x, b.y - player.y)
         )[0];
-      target = enemy ?? null;
+      target = enemy ? this.assistedTarget(run, enemy) : null;
+      if (!enemy) this.targetSample = null;
     }
     if (!target) {
       const movement = this.movement();
@@ -361,6 +394,7 @@ export class GameInput {
       this.queuedAbilitySource = null;
       this.queuedAim = null;
       this.queuedAimDistance = null;
+      this.targetSample = null;
       this.specialBlocked = this.attack || this.keys.has("Space") || this.actionDrag !== null;
     }
     for (const id of this.blockedBodies) {
@@ -482,6 +516,7 @@ export class GameInput {
     this.mouseButtons = 0;
     this.mousePointerId = null;
     this.mouse = null;
+    this.targetSample = null;
     this.actionAiming = false;
     document
       .querySelectorAll(".held")
