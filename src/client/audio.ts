@@ -36,6 +36,17 @@ export class GameAudio {
       );
   }
   suspend() {
+    this.master?.disconnect();
+    this.master = null;
+    this.effects = null;
+    this.lastPlayerBasic = -Infinity;
+    this.lastEnemyAttack = -Infinity;
+    this.lastEnemyHit = -Infinity;
+    this.lastEnemyDeath = -Infinity;
+    this.lastSurface = -Infinity;
+    this.lastPlayerChargeSurface = -Infinity;
+    this.lastPatternTell = -Infinity;
+    this.lastImpact = { player: -Infinity, enemy: -Infinity, echo: -Infinity };
     void this.context?.suspend();
   }
   private duckEffects(duration: number) {
