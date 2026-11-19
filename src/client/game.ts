@@ -274,6 +274,24 @@ export class BodyHopScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setDepth(2100)
       .setVisible(false);
+    const redraw = () => this.game.loop.wake();
+    this.scale.on(Phaser.Scale.Events.RESIZE, redraw);
+    const parent = this.game.canvas.parentElement;
+    const observer = new ResizeObserver((entries) => {
+      const bounds = entries[0]?.contentRect;
+      if (!bounds || bounds.width <= 0 || bounds.height <= 0) return;
+      this.scale.getParentBounds();
+      this.scale.refresh();
+    });
+    if (parent) observer.observe(parent);
+    const cleanup = () => {
+      observer.disconnect();
+      this.scale.off(Phaser.Scale.Events.RESIZE, redraw);
+      this.events.off(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+      this.events.off(Phaser.Scenes.Events.DESTROY, cleanup);
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+    this.events.once(Phaser.Scenes.Events.DESTROY, cleanup);
     this.hooks.ready(this.game.canvas);
   }
   captureSimulationState(run: Run) {
@@ -811,6 +829,11 @@ export class BodyHopScene extends Phaser.Scene {
       }
     }
   }
+  private screenSize(worldSize: number, minimumPixels: number): number {
+    const { displaySize, gameSize } = this.scale;
+    const ratio = Math.min(displaySize.width / gameSize.width, displaySize.height / gameSize.height);
+    return Math.max(worldSize, minimumPixels / (ratio || 1));
+  }
   private draw(run: Run, dt: number) {
     const ground = this.ground,
       marks = this.marks,
@@ -826,10 +849,14 @@ export class BodyHopScene extends Phaser.Scene {
     this.keeperArrivalMs = Math.max(0, this.keeperArrivalMs - dt);
     const keeper = actors.find((actor) => actor.elite && actor.hp > 0);
     this.keeperLabel.setVisible(Boolean(keeper && this.keeperArrivalMs > 0));
-    if (keeper)
+    if (keeper) {
+      const fontSize = Math.ceil(this.screenSize(20, 11));
+      if (this.keeperLabel.style.fontSize !== `${fontSize}px`)
+        this.keeperLabel.setFontSize(fontSize);
       this.keeperLabel
         .setPosition(keeper.x, Math.max(55, keeper.y - keeper.radius - 28))
         .setAlpha(Math.min(1, this.keeperArrivalMs / 350));
+    }
     for (const [id, remaining] of this.mutationPulse)
       this.mutationPulse.set(id, Math.max(0, remaining - dt));
     if (run.exit) {
@@ -953,9 +980,11 @@ export class BodyHopScene extends Phaser.Scene {
         const pulse = switchReady && !this.hooks.reducedMotion() ? Math.sin(this.elapsed * 0.006) * 2 : 0;
         const reach = corpse.radius + 12 + pulse;
         const color = switchReady ? 0xc5e5c8 : PAPER;
-        marks.lineStyle(4, BLACK, 0.8);
-        for (const width of [4, 2]) {
-          marks.lineStyle(width, width === 4 ? BLACK : color, switchReady ? 1 : 0.45);
+        for (const [width, stroke] of [
+          [this.screenSize(4, 2.4), BLACK],
+          [this.screenSize(2, 1.2), color],
+        ] as const) {
+          marks.lineStyle(width, stroke, switchReady ? 1 : 0.45);
           for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
             const x = corpse.x + sx * reach, y = corpse.y + sy * reach * 0.6;
             marks.lineBetween(x, y, x - sx * 10, y);
@@ -1156,7 +1185,7 @@ export class BodyHopScene extends Phaser.Scene {
           const radius = actor.radius + 9 + (this.hooks.reducedMotion() ? 0 : progress * 18);
           ground.fillStyle(BLACK, remaining * 0.45)
             .fillEllipse(actor.x, actor.y + actor.radius * 0.4, radius * 2, radius);
-          marks.lineStyle(3, PAPER, remaining * 0.7)
+          marks.lineStyle(3, actor.faction === "enemy" ? DANGER : PAPER, remaining * 0.7)
             .strokeEllipse(actor.x, actor.y + actor.radius * 0.4, radius * 2, radius);
           if (!this.hooks.reducedMotion() && !actor.action) {
             squashX *= 1 + remaining * 0.18;
@@ -1261,7 +1290,7 @@ export class BodyHopScene extends Phaser.Scene {
             : actor.invulnerableMs > 0 && !transfer
             ? this.hooks.reducedMotion()
               ? 0.85
-              : 0.7 + Math.sin(this.elapsed * 0.025) * 0.15
+              : 0.925 + Math.sin(this.elapsed * 0.025) * 0.075
             : 1
         );
       const flash = this.flashes.get(actor.id) ?? 0;
@@ -1285,15 +1314,15 @@ export class BodyHopScene extends Phaser.Scene {
       if (owned) {
         this.drawAbilityMeter(actor, visual, lift, presence);
         marks
-          .lineStyle(2.4, BLACK, 0.7 * presence)
+          .lineStyle(this.screenSize(2.4, 2.1), BLACK, 0.7 * presence)
           .strokeEllipse(
             actor.x,
             actor.y + actor.radius * 0.6,
-            actor.radius * 2.65,
-            actor.radius * 0.9
+            actor.radius * 2.65 + 3,
+            actor.radius * 0.9 + 3
           );
         marks
-          .lineStyle(1.2, LIGHT, presence)
+          .lineStyle(this.screenSize(1.2, 1.1), LIGHT, presence)
           .strokeEllipse(
             actor.x,
             actor.y + actor.radius * 0.6,
@@ -1357,6 +1386,7 @@ export class BodyHopScene extends Phaser.Scene {
         this.arrivals.delete(id);
       }
     });
+    this.drawEffects(dt);
     for (const current of run.projectiles) {
       const projectile = {
         ...current,
@@ -1415,7 +1445,6 @@ export class BodyHopScene extends Phaser.Scene {
           .fillCircle(projectile.x - 1, projectile.y - 2, 1.4);
       }
     }
-    this.drawEffects(dt);
     if (player.hp > 0 && run.phase === "playing" &&
       !(player.action?.kind === "leap" && player.action.stage === "active")) {
       const protectedBody = player.invulnerableMs > 0;
@@ -1484,11 +1513,24 @@ export class BodyHopScene extends Phaser.Scene {
       g.strokePath();
     }
   }
+  private strokeTelegraph(enemy: boolean, opacity: number, trace: () => void, width = 2) {
+    if (enemy) {
+      this.marks.lineStyle(this.screenSize(width + 2, 2.5), BLACK, 0.7);
+      trace();
+      this.marks.strokePath();
+    }
+    this.marks.lineStyle(enemy ? this.screenSize(width, 1.25) : width,
+      enemy ? DANGER : LIGHT, opacity);
+    // WebGL stores widths with path points, so each stroke needs its own trace.
+    trace();
+    this.marks.strokePath();
+  }
   private drawTelegraph(actor: Actor) {
     const action = actor.action;
     if (!action) return;
     const g = this.marks,
-      color = actor.faction === "enemy" ? DANGER : LIGHT;
+      enemy = actor.faction === "enemy",
+      color = enemy ? DANGER : LIGHT;
     const progress =
       action.stage === "active"
         ? 1
@@ -1502,9 +1544,8 @@ export class BodyHopScene extends Phaser.Scene {
       const sweep = pattern.kind === "ring"
         ? Math.PI * 2 - pattern.gap
         : pattern.spread;
-      g.lineStyle(2, color, 0.4 + progress * 0.5).beginPath();
-      g.arc(actor.x, actor.y, reach, start, start + sweep);
-      g.strokePath();
+      this.strokeTelegraph(enemy, 0.4 + progress * 0.5,
+        () => g.beginPath().arc(actor.x, actor.y, reach, start, start + sweep));
       for (let index = 0; index < pattern.count; index++) {
         const angle = pattern.kind === "ring"
           ? pattern.angle + Math.PI * 2 * index / pattern.count
@@ -1515,7 +1556,7 @@ export class BodyHopScene extends Phaser.Scene {
         if (pattern.kind === "ring" && difference < pattern.gap / 2) continue;
         const dx = Math.cos(angle), dy = Math.sin(angle);
         const from = actor.radius + 14;
-        g.lineStyle(1.4, color, 0.14 + progress * 0.28)
+        g.lineStyle(enemy ? this.screenSize(1.4, 0.75) : 1.4, color, 0.14 + progress * 0.28)
           .lineBetween(actor.x + dx * from, actor.y + dy * from,
             actor.x + dx * reach, actor.y + dy * reach);
         const tip = from + (reach - from) * progress;
@@ -1530,11 +1571,8 @@ export class BodyHopScene extends Phaser.Scene {
         action.targetY,
         radius
       );
-      g.lineStyle(2, color, 0.6 + progress * 0.4).strokeCircle(
-        action.targetX,
-        action.targetY,
-        radius
-      );
+      this.strokeTelegraph(enemy, 0.6 + progress * 0.4,
+        () => g.beginPath().arc(action.targetX, action.targetY, radius, 0, Math.PI * 2));
       g.lineStyle(1, color, 0.3).lineBetween(
         actor.x,
         actor.y,
@@ -1545,13 +1583,11 @@ export class BodyHopScene extends Phaser.Scene {
       const angle = Math.atan2(action.dirY, action.dirX),
         reach = actor.species === "beetle" ? 100 : 84;
       g.fillStyle(color, 0.06 + progress * 0.13);
-      g.lineStyle(2, color, 0.5 + progress * 0.4);
-      g.beginPath();
-      g.moveTo(actor.x, actor.y);
-      g.arc(actor.x, actor.y, reach, angle - 1.3, angle + 1.3);
-      g.closePath();
+      const trace = () => g.beginPath().moveTo(actor.x, actor.y)
+        .arc(actor.x, actor.y, reach, angle - 1.3, angle + 1.3).closePath();
+      trace();
       g.fillPath();
-      g.strokePath();
+      this.strokeTelegraph(enemy, 0.5 + progress * 0.4, trace);
       g.lineStyle(3, color, 0.8).lineBetween(
         actor.x + action.dirX * (actor.radius + 8),
         actor.y + action.dirY * (actor.radius + 8),
@@ -1562,15 +1598,13 @@ export class BodyHopScene extends Phaser.Scene {
       const px = -action.dirY * actor.radius,
         py = action.dirX * actor.radius;
       g.fillStyle(color, 0.07 + progress * 0.1);
-      g.lineStyle(2, color, 0.5 + progress * 0.35);
-      g.beginPath();
-      g.moveTo(actor.x + px, actor.y + py);
-      g.lineTo(action.targetX + px, action.targetY + py);
-      g.lineTo(action.targetX - px, action.targetY - py);
-      g.lineTo(actor.x - px, actor.y - py);
-      g.closePath();
+      const trace = () => g.beginPath().moveTo(actor.x + px, actor.y + py)
+        .lineTo(action.targetX + px, action.targetY + py)
+        .lineTo(action.targetX - px, action.targetY - py)
+        .lineTo(actor.x - px, actor.y - py).closePath();
+      trace();
       g.fillPath();
-      g.strokePath();
+      this.strokeTelegraph(enemy, 0.5 + progress * 0.35, trace);
       const x = actor.x + (action.targetX - actor.x) * progress,
         y = actor.y + (action.targetY - actor.y) * progress;
       g.lineStyle(3, color, 0.8).lineBetween(actor.x, actor.y, x, y);
@@ -1589,7 +1623,8 @@ export class BodyHopScene extends Phaser.Scene {
         x - px,
         y - py
       );
-      g.lineStyle(1.7, color, 0.6).lineBetween(actor.x, actor.y, x, y);
+      this.strokeTelegraph(enemy, 0.6,
+        () => g.beginPath().moveTo(actor.x, actor.y).lineTo(x, y), 1.7);
     }
   }
   private drawAim(run: Run, actor: Actor, aim: Vec2, aimDistance?: number) {
