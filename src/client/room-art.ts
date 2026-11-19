@@ -38,7 +38,7 @@ function line(
   ctx.stroke(new Path2D(outline));
 }
 
-function bread(ctx: CanvasRenderingContext2D, wall: Rect) {
+function bread(ctx: CanvasRenderingContext2D, wall: Rect, scorched: boolean) {
   const { x, y, width: w, height: h } = wall;
   ctx.save();
   ctx.translate(x, y);
@@ -96,6 +96,27 @@ function bread(ctx: CanvasRenderingContext2D, wall: Rect) {
     "#d2a263",
     2
   );
+  if (scorched) {
+    const face = h - crust;
+    fill(
+      ctx,
+      `M 8 ${face * 0.2} C ${w * 0.28} ${face * 0.12} ${w * 0.52} ${face * 0.25} ${w * 0.72} ${face * 0.4}
+       L ${w * 0.61} ${face * 0.43} C ${w * 0.43} ${face * 0.31} ${w * 0.22} ${face * 0.29} 9 ${face * 0.3} Z`,
+      "#3b302bb0"
+    );
+    fill(
+      ctx,
+      `M 12 ${face * 0.46} C ${w * 0.34} ${face * 0.39} ${w * 0.61} ${face * 0.59} ${w - 12} ${face * 0.73}
+       L ${w * 0.8} ${face * 0.76} C ${w * 0.56} ${face * 0.65} ${w * 0.31} ${face * 0.56} 13 ${face * 0.55} Z`,
+      "#322c28b8"
+    );
+    fill(
+      ctx,
+      `M ${w * 0.56} ${h - crust + 10} L ${w * 0.7} ${h - crust + 12} L ${w * 0.85} ${h - crust + 9}
+       L ${w - 9} ${h - 6} L ${w * 0.74} ${h - 5} L ${w * 0.61} ${h - 7} Z`,
+      "#302923b8"
+    );
+  }
   let seed = (x * 317 + y * 97 + w) >>> 0;
   const random = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -431,6 +452,6 @@ export function createFeastFloor(
     fill(ctx, outline!, "#c9bea0", "#39453c", 1.5);
     line(ctx, fracture!, "#847c64", 1.2);
   }
-  for (const obstacle of obstacles) bread(ctx, obstacle);
+  for (const obstacle of obstacles) bread(ctx, obstacle, chamber === 4);
   return canvas;
 }
