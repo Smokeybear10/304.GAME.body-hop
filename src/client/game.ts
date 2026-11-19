@@ -275,7 +275,7 @@ export class BodyHopScene extends Phaser.Scene {
         padding: { x: 10, y: 5 },
       })
       .setOrigin(0.5, 1)
-      .setDepth(2100)
+      .setDepth(3)
       .setVisible(false);
     this.cooldownLabel = this.add
       .text(0, 0, "", {
@@ -1432,7 +1432,11 @@ export class BodyHopScene extends Phaser.Scene {
       }
     });
     this.drawEffects(dt);
-    for (const current of run.projectiles) {
+    const projectiles = [
+      ...run.projectiles.filter(shot => shot.faction === "player"),
+      ...run.projectiles.filter(shot => shot.faction === "enemy"),
+    ];
+    for (const current of projectiles) {
       const projectile = {
         ...current,
         x: current.prevX + (current.x - current.prevX) * alpha,
